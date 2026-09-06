@@ -1,0 +1,1714 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="打ち上げ出席">
+<title>獅子巡行 打ち上げ出席管理</title>
+
+<!-- 日本語フォント（Noto Sans JP）。CDN＝インターネット上の配布置き場のこと -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+
+<!-- Excelの読み書き用ライブラリ（SheetJS） -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+/* ============================================================
+   1. 配色（色の設定）。ライト／ダークの2種類を用意する
+   ============================================================ */
+:root{
+  --bg:#f5f6f8; --panel:#ffffff; --panel2:#fafbfc;
+  --text:#1b1d21; --muted:#6b7280; --line:#dfe3e8;
+  --accent:#0f766e; --accent-weak:#d7f0ec; --accent-text:#ffffff;
+  --ok-bg:#16a34a; --ok-text:#ffffff;
+  --warn-bg:#fbbf24; --warn-text:#402c00; --warn-line:#d99e00;
+  --danger:#c0392b; --danger-weak:#fdecea;
+  --head:#eef1f4; --shadow:0 1px 3px rgba(0,0,0,.10), 0 6px 18px rgba(0,0,0,.06);
+  --radius:12px;
+}
+:root[data-theme="dark"]{
+  --bg:#14161a; --panel:#1e2127; --panel2:#23262d;
+  --text:#e8eaed; --muted:#9aa1ab; --line:#333842;
+  --accent:#2dd4bf; --accent-weak:#123c39; --accent-text:#06201d;
+  --ok-bg:#15803d; --ok-text:#ffffff;
+  --warn-bg:#a16207; --warn-text:#ffe9b3; --warn-line:#ca8a04;
+  --danger:#f87171; --danger-weak:#3a1f1d;
+  --head:#262a31; --shadow:0 1px 3px rgba(0,0,0,.5), 0 6px 18px rgba(0,0,0,.35);
+}
+
+/* 素のWebサイトなので、リセットは自前で持つ。
+   [hidden] の !important は必須（これが無いと隠したい要素が出てしまう） */
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none !important}
+html,body{margin:0;padding:0}
+body{
+  font-family:"Noto Sans JP",-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;
+  background:var(--bg); color:var(--text);
+  font-size:15px; line-height:1.6;
+  -webkit-text-size-adjust:100%;
+  -webkit-tap-highlight-color:transparent;
+  padding-bottom:calc(64px + env(safe-area-inset-bottom));
+}
+img{max-width:100%}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+
+/* ============================================================
+   2. 共通部品
+   ============================================================ */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  min-height:44px; padding:0 14px; border:1px solid var(--line);
+  background:var(--panel); color:var(--text);
+  border-radius:10px; cursor:pointer; font-weight:500; white-space:nowrap;
+}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+.btn.danger{background:var(--danger-weak);color:var(--danger);border-color:var(--danger)}
+.btn.sm{min-height:34px;padding:0 10px;font-size:13px;border-radius:8px}
+.btn.icon{min-width:44px;padding:0 8px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.field{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.field label{font-size:13px;color:var(--muted);font-weight:500}
+.field input,.field select,.field textarea{
+  min-height:44px;padding:8px 10px;border:1px solid var(--line);
+  border-radius:10px;background:var(--panel2);width:100%
+}
+.field textarea{min-height:130px;line-height:1.7;resize:vertical}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.grow{flex:1 1 auto;min-width:0}
+.card{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:14px;margin:12px 0;box-shadow:var(--shadow)
+}
+.card > h2{margin:0 0 10px;font-size:16px;letter-spacing:.02em}
+.card > h3{margin:16px 0 8px;font-size:14px;color:var(--muted)}
+.muted{color:var(--muted)}
+.small{font-size:12.5px}
+.num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.pill{
+  display:inline-block;padding:1px 8px;border-radius:999px;
+  background:var(--accent-weak);color:var(--accent);font-size:11.5px;font-weight:700
+}
+.pill.gray{background:var(--head);color:var(--muted)}
+
+/* ============================================================
+   3. ヘッダーとタブ
+   ============================================================ */
+header.app{
+  position:sticky;top:0;z-index:60;
+  background:var(--panel);border-bottom:1px solid var(--line);
+  padding:8px 12px calc(8px);
+  padding-top:calc(8px + env(safe-area-inset-top));
+  display:flex;align-items:center;gap:8px;
+}
+header.app h1{margin:0;font-size:16px;font-weight:700;flex:1 1 auto;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#syncDot{
+  width:9px;height:9px;border-radius:50%;background:var(--muted);flex:none;
+  transition:background .2s
+}
+#syncDot.ok{background:#16a34a}
+#syncDot.busy{background:#f59e0b}
+#syncDot.err{background:#dc2626}
+#syncText{font-size:11.5px;color:var(--muted);white-space:nowrap}
+
+nav.tabs{
+  position:fixed;left:0;right:0;bottom:0;z-index:70;
+  display:grid;grid-template-columns:repeat(4,1fr);
+  background:var(--panel);border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom);
+}
+nav.tabs button{
+  border:0;background:none;padding:8px 2px 10px;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:2px;
+  font-size:11px;color:var(--muted);font-weight:500;min-height:56px;justify-content:center
+}
+nav.tabs button .ic{font-size:19px;line-height:1}
+nav.tabs button[aria-selected="true"]{color:var(--accent);font-weight:700}
+
+main{padding:0 12px;max-width:1400px;margin:0 auto}
+
+/* ============================================================
+   4. マトリクス表（メイン画面）
+   ============================================================ */
+.tablewrap{
+  overflow:auto; -webkit-overflow-scrolling:touch;
+  border:1px solid var(--line); border-radius:var(--radius);
+  background:var(--panel); max-height:calc(100vh - 250px);
+  box-shadow:var(--shadow);
+}
+table.matrix{border-collapse:separate;border-spacing:0;font-size:13px;width:auto}
+table.matrix th,table.matrix td{
+  border-right:1px solid var(--line);border-bottom:1px solid var(--line);
+  padding:0;margin:0;background:var(--panel)
+}
+/* 先頭列（氏名）を固定 */
+table.matrix .colname{
+  position:sticky;left:0;z-index:2;
+  min-width:116px;max-width:150px;
+  padding:6px 8px;text-align:left;font-weight:500;
+  background:var(--panel);
+  box-shadow:1px 0 0 var(--line)
+}
+table.matrix .colname .kana{display:block;font-size:10px;color:var(--muted);line-height:1.2}
+table.matrix .colname .nm{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 先頭行（日付）を固定 */
+table.matrix thead th{
+  position:sticky;top:0;z-index:3;background:var(--head);
+  padding:5px 4px;font-size:11px;font-weight:700;text-align:center;
+  min-width:52px;line-height:1.25
+}
+table.matrix thead th.colname{z-index:4;text-align:left;font-size:12px}
+table.matrix thead th .v{display:block;font-size:9.5px;font-weight:400;color:var(--muted);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+table.matrix thead th .sat{color:#2563eb}
+table.matrix thead th .sun{color:#dc2626}
+
+/* 出席セル */
+td.cell{
+  text-align:center;cursor:pointer;user-select:none;-webkit-user-select:none;
+  position:relative;height:40px;min-width:52px
+}
+td.cell .mark{display:block;font-size:17px;font-weight:700;line-height:40px}
+td.cell[data-p="1"][data-c="1"]{background:var(--ok-bg)}
+td.cell[data-p="1"][data-c="1"] .mark{color:var(--ok-text)}
+td.cell[data-p="1"][data-c="0"]{background:var(--warn-bg);box-shadow:inset 0 0 0 2px var(--warn-line)}
+td.cell[data-p="1"][data-c="0"] .mark{color:var(--warn-text)}
+td.cell .yen{
+  position:absolute;right:1px;bottom:0;font-size:9px;opacity:.85;
+  padding:1px 3px;line-height:1
+}
+tbody tr.inactive td,tbody tr.inactive th{opacity:.5}
+/* 行の右端集計 */
+table.matrix td.sum{padding:4px 7px;font-size:12px;background:var(--panel2)}
+table.matrix thead th.sum{background:var(--head)}
+/* 合計行を下に固定 */
+table.matrix tfoot th,table.matrix tfoot td{
+  position:sticky;bottom:0;z-index:3;background:var(--head);
+  padding:4px 6px;font-size:11.5px;font-weight:700
+}
+table.matrix tfoot th.colname{z-index:4;left:0}
+table.matrix tfoot .sub{display:block;font-weight:400;font-size:10px;color:var(--muted)}
+
+.grandtotal{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:12px 0
+}
+.gt{
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:10px 12px;box-shadow:var(--shadow)
+}
+.gt .k{font-size:11.5px;color:var(--muted)}
+.gt .v{font-size:19px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.gt.warn .v{color:var(--danger)}
+
+/* ============================================================
+   5. 一般の表
+   ============================================================ */
+table.list{width:100%;border-collapse:collapse;font-size:13px}
+table.list th,table.list td{border-bottom:1px solid var(--line);padding:7px 6px;text-align:left}
+table.list th{background:var(--head);font-size:12px;position:sticky;top:0;z-index:1}
+table.list td.num,table.list th.num{text-align:right;font-variant-numeric:tabular-nums}
+table.list tbody tr:active{background:var(--panel2)}
+
+/* 名簿の並べ替えリスト */
+ul.sortable{list-style:none;margin:0;padding:0}
+ul.sortable li{
+  display:flex;align-items:center;gap:8px;padding:8px 6px;
+  border-bottom:1px solid var(--line);background:var(--panel);touch-action:pan-y
+}
+ul.sortable li.dragging{opacity:.35}
+ul.sortable li.over{box-shadow:inset 0 3px 0 var(--accent)}
+ul.sortable li .handle{
+  cursor:grab;touch-action:none;font-size:18px;color:var(--muted);
+  padding:6px 8px;flex:none;user-select:none;-webkit-user-select:none
+}
+ul.sortable li .nm{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+ul.sortable li .nm small{display:block;color:var(--muted);font-size:11px}
+
+/* 特定日ビュー（会計・集金用） */
+.daycheck{list-style:none;margin:0;padding:0}
+.daycheck li{
+  display:flex;align-items:center;gap:12px;padding:12px 8px;
+  border-bottom:1px solid var(--line);cursor:pointer;min-height:56px
+}
+.daycheck li .box{
+  width:30px;height:30px;flex:none;border:2px solid var(--line);border-radius:8px;
+  display:flex;align-items:center;justify-content:center;font-size:19px;font-weight:700;
+  background:var(--panel2)
+}
+.daycheck li.paid .box{background:var(--ok-bg);border-color:var(--ok-bg);color:var(--ok-text)}
+.daycheck li .nm{flex:1 1 auto;font-size:16px;font-weight:500}
+.daycheck li.paid .nm{color:var(--muted);text-decoration:line-through}
+.daycheck li .amt{font-variant-numeric:tabular-nums;color:var(--muted)}
+
+/* ダイアログ */
+dialog{
+  border:0;border-radius:16px;padding:0;background:var(--panel);color:var(--text);
+  width:min(520px,calc(100vw - 24px));box-shadow:0 20px 60px rgba(0,0,0,.35)
+}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+dialog .dlg-body{padding:16px}
+dialog h2{margin:0 0 12px;font-size:17px}
+dialog .dlg-foot{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:6px}
+
+/* トースト（画面下の一時メッセージ） */
+#toast{
+  position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(74px + env(safe-area-inset-bottom));z-index:200;
+  background:#111827;color:#fff;padding:10px 16px;border-radius:999px;
+  font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.35);
+  display:flex;align-items:center;gap:10px;max-width:calc(100vw - 24px)
+}
+#toast button{background:none;border:0;color:#7dd3fc;font-weight:700;cursor:pointer;padding:2px 4px}
+#toast[hidden]{display:none !important}
+
+.notice{
+  background:var(--accent-weak);border:1px solid var(--accent);color:var(--text);
+  border-radius:10px;padding:10px 12px;font-size:13px;margin:10px 0
+}
+.notice.warn{background:var(--danger-weak);border-color:var(--danger)}
+
+/* ============================================================
+   6. 印刷用（A4横）
+   ============================================================ */
+@media print{
+  @page{size:A4 landscape;margin:8mm}
+  :root{--bg:#fff;--panel:#fff;--panel2:#fff;--head:#eee;--line:#999;--text:#000;--muted:#444}
+  html[data-theme="dark"]{--bg:#fff;--panel:#fff;--panel2:#fff;--head:#eee;--line:#999;--text:#000;--muted:#444}
+  body{background:#fff;color:#000;font-size:9pt;padding:0}
+  header.app,nav.tabs,#toast,.noprint,.tabs{display:none !important}
+  main{padding:0;max-width:none}
+  .card{box-shadow:none;border:0;padding:0;margin:0 0 6mm}
+  .tablewrap{max-height:none;overflow:visible;border:0;box-shadow:none}
+  table.matrix{font-size:8pt;width:100%}
+  table.matrix th,table.matrix td{border:.4pt solid #999 !important}
+  table.matrix .colname,table.matrix thead th,table.matrix tfoot th,table.matrix tfoot td{
+    position:static !important;box-shadow:none !important
+  }
+  td.cell{height:auto}
+  td.cell .mark{line-height:1.5;font-size:9pt}
+  td.cell[data-p="1"][data-c="1"]{background:#cfe9d6 !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  td.cell[data-p="1"][data-c="0"]{background:#ffeeb0 !important;box-shadow:none !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  td.cell[data-p="1"] .mark{color:#000 !important}
+  .grandtotal{grid-template-columns:repeat(4,1fr)}
+  .gt{border:.4pt solid #999;box-shadow:none}
+  #printTitle{display:block !important;font-size:13pt;font-weight:700;margin:0 0 3mm}
+}
+#printTitle{display:none}
+
+@media (min-width:820px){
+  body{font-size:15px}
+  .tablewrap{max-height:calc(100vh - 260px)}
+}
+</style>
+</head>
+<body>
+
+<header class="app">
+  <h1 id="appTitle">獅子巡行 打ち上げ出席管理</h1>
+  <span id="syncDot" title="同期状態"></span>
+  <span id="syncText">起動中</span>
+  <button class="btn icon sm" id="btnTheme" title="ダークモード切替" aria-label="ダークモード切替">🌓</button>
+</header>
+
+<main>
+  <div id="printTitle"></div>
+
+  <!-- ========== 一覧（マトリクス） ========== -->
+  <section id="view-matrix">
+    <div class="card noprint" style="padding:10px 12px">
+      <div class="row">
+        <input class="grow" id="qName" type="search" placeholder="氏名で検索" style="min-height:40px;padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)">
+        <button class="btn sm" id="btnUndo" title="直前の操作を取り消す" disabled>↩︎ 戻す</button>
+        <button class="btn sm" id="btnDateOrder" title="日付の並び順">日付 ↑</button>
+        <button class="btn sm" id="btnPrint">印刷</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label class="row small" style="gap:5px"><input type="checkbox" id="fUnpaid" style="width:18px;height:18px"> 未集金の人だけ</label>
+        <label class="row small" style="gap:5px"><input type="checkbox" id="fInactive" style="width:18px;height:18px"> 退会者も表示</label>
+        <select id="fDate" class="small" style="min-height:34px;padding:2px 8px;border:1px solid var(--line);border-radius:8px;background:var(--panel2)">
+          <option value="">日で絞らない</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="grandtotal" id="grandTotal"></div>
+
+    <div class="tablewrap">
+      <table class="matrix" id="matrix"><tbody><tr><td style="padding:20px">読み込み中…</td></tr></tbody></table>
+    </div>
+    <p class="small muted noprint" style="margin:8px 2px 20px">
+      セルを<b>タップ</b>＝参加/不参加。セルを<b>長押し</b>（またはセル右下の <b>¥</b>）＝集金済/未集金。<br>
+      <span style="display:inline-block;width:11px;height:11px;background:var(--ok-bg);border-radius:3px;vertical-align:-1px"></span> 参加・集金済
+      <span style="display:inline-block;width:11px;height:11px;background:var(--warn-bg);border-radius:3px;vertical-align:-1px"></span> 参加・<b>未集金</b>
+      空欄 不参加
+    </p>
+  </section>
+
+  <!-- ========== 日別（特定日ビュー） ========== -->
+  <section id="view-day" hidden>
+    <div class="card">
+      <div class="field" style="margin:0">
+        <label>開催日を選ぶ</label>
+        <select id="daySelect"></select>
+      </div>
+    </div>
+    <div id="dayPane"></div>
+  </section>
+
+  <!-- ========== 集計 ========== -->
+  <section id="view-stats" hidden>
+    <div id="statsPane"></div>
+  </section>
+
+  <!-- ========== 管理 ========== -->
+  <section id="view-admin" hidden>
+    <div class="card">
+      <h2>開催日の管理</h2>
+      <div class="row"><button class="btn primary" id="btnAddDate">＋ 開催日を追加</button></div>
+      <div id="dateList" style="margin-top:10px"></div>
+    </div>
+
+    <div class="card">
+      <h2>メンバーの管理</h2>
+      <div class="row">
+        <button class="btn primary" id="btnAddMember">＋ 追加</button>
+        <button class="btn" id="btnBulkAdd">まとめて追加</button>
+        <button class="btn sm" id="btnSortKana">ふりがな順</button>
+        <button class="btn sm" id="btnSortCount">参加回数順</button>
+      </div>
+      <p class="small muted" style="margin:8px 0 0">☰ をつまんで上下に動かすと並べ替えできます（指でもマウスでも可）。</p>
+      <ul class="sortable" id="memberList" style="margin-top:6px"></ul>
+    </div>
+
+    <div class="card">
+      <h2>データの持ち出し・取り込み</h2>
+      <p class="small muted" style="margin-top:0">クラウド（スプレッドシート）とは別に、手元へ保存する機能です。</p>
+      <h3>書き出す</h3>
+      <div class="row">
+        <button class="btn" id="btnExcel">Excel(.xlsx)</button>
+        <button class="btn" id="btnCsv">CSV</button>
+        <button class="btn" id="btnJson">JSONバックアップ</button>
+      </div>
+      <h3>取り込む（今のデータは置き換わります）</h3>
+      <div class="row">
+        <label class="btn">Excelを読み込む<input type="file" id="inExcel" accept=".xlsx,.xls" hidden></label>
+        <label class="btn">JSONを読み込む<input type="file" id="inJson" accept=".json,application/json" hidden></label>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>設定</h2>
+      <div class="field">
+        <label>アプリのタイトル</label>
+        <input id="setTitle" type="text">
+      </div>
+      <div class="field">
+        <label>既定の一人負担金（円）</label>
+        <input id="setFee" type="number" min="0" step="100" inputmode="numeric">
+      </div>
+      <div class="row"><button class="btn primary" id="btnSaveSettings">設定を保存</button></div>
+    </div>
+
+    <div class="card">
+      <h2>接続先（クラウド保存）</h2>
+      <div class="field">
+        <label>Apps Script ウェブアプリのURL</label>
+        <input id="setUrl" type="url" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>合言葉（トークン）</label>
+        <input id="setToken" type="text" autocomplete="off">
+      </div>
+      <div class="row">
+        <button class="btn primary" id="btnSaveConn">接続先を保存して読み込み直す</button>
+        <button class="btn" id="btnReload">最新を取得</button>
+      </div>
+      <p class="small muted">この2つはこの端末の中だけに記憶されます。iPhoneとMacで1回ずつ入力してください。</p>
+    </div>
+
+    <div class="card">
+      <h2 style="color:var(--danger)">危険な操作</h2>
+      <div class="row">
+        <button class="btn danger" id="btnClearAttendance">出席記録だけ全消去</button>
+        <button class="btn danger" id="btnClearAll">全データを初期化</button>
+      </div>
+    </div>
+    <div style="height:30px"></div>
+  </section>
+</main>
+
+<nav class="tabs noprint" role="tablist">
+  <button role="tab" data-view="matrix" aria-selected="true"><span class="ic">▦</span>一覧</button>
+  <button role="tab" data-view="day" aria-selected="false"><span class="ic">📋</span>日別</button>
+  <button role="tab" data-view="stats" aria-selected="false"><span class="ic">📊</span>集計</button>
+  <button role="tab" data-view="admin" aria-selected="false"><span class="ic">⚙︎</span>管理</button>
+</nav>
+
+<div id="toast" hidden><span id="toastMsg"></span><button id="toastAct" hidden></button></div>
+
+<!-- ========== ダイアログ群 ========== -->
+<dialog id="dlgDate"><form method="dialog" class="dlg-body">
+  <h2 id="dlgDateTitle">開催日</h2>
+  <div class="field"><label>日付</label><input type="date" id="dDate" required></div>
+  <div class="field"><label>会場名</label><input type="text" id="dVenue" list="venues" placeholder="カリスマ"><datalist id="venues"></datalist></div>
+  <div class="field"><label>一人負担金（円）</label><input type="number" id="dFee" min="0" step="100" inputmode="numeric"></div>
+  <div class="field"><label>メモ（任意）</label><input type="text" id="dMemo"></div>
+  <div class="dlg-foot">
+    <button class="btn danger" value="delete" id="dDelete">削除</button>
+    <button class="btn" value="cancel">やめる</button>
+    <button class="btn primary" value="ok">保存</button>
+  </div>
+</form></dialog>
+
+<dialog id="dlgMember"><form method="dialog" class="dlg-body">
+  <h2 id="dlgMemberTitle">メンバー</h2>
+  <div class="field"><label>氏名</label><input type="text" id="mName" required></div>
+  <div class="field"><label>ふりがな（任意）</label><input type="text" id="mKana" placeholder="ほそや よしかず"></div>
+  <div class="field"><label>区分</label><input type="text" id="mGroup" list="groups" placeholder="一般"><datalist id="groups"></datalist></div>
+  <div class="field"><label class="row" style="gap:6px"><input type="checkbox" id="mActive" style="width:18px;height:18px"> 有効（外すと退会者扱い。記録は残ります）</label></div>
+  <div class="dlg-foot">
+    <button class="btn danger" value="delete" id="mDelete">削除</button>
+    <button class="btn" value="cancel">やめる</button>
+    <button class="btn primary" value="ok">保存</button>
+  </div>
+</form></dialog>
+
+<dialog id="dlgBulk"><form method="dialog" class="dlg-body">
+  <h2>メンバーをまとめて追加</h2>
+  <p class="small muted" style="margin-top:0">1行に1人。「氏名,ふりがな,区分」のように読点で区切ると、ふりがなと区分も一緒に登録できます。</p>
+  <div class="field"><textarea id="bulkText" placeholder="佐藤　太郎&#10;鈴木　次郎,すずき じろう,一般&#10;学生12,,学生"></textarea></div>
+  <div class="dlg-foot">
+    <button class="btn" value="cancel">やめる</button>
+    <button class="btn primary" value="ok">追加する</button>
+  </div>
+</form></dialog>
+
+<dialog id="dlgSetup"><form method="dialog" class="dlg-body">
+  <h2>最初の設定</h2>
+  <p class="small">クラウド（Googleスプレッドシート）に保存するため、次の2つを入力してください。
+  セットアップ手順書の最後に書いてあるものです。<br>
+  <b>あとで入力する場合は「あとで」を押してください。</b>この端末の中だけで動きます（他の端末とは同期しません）。</p>
+  <div class="field"><label>Apps Script ウェブアプリのURL</label><input type="url" id="suUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off"></div>
+  <div class="field"><label>合言葉（トークン）</label><input type="text" id="suToken" autocomplete="off"></div>
+  <div class="dlg-foot">
+    <button class="btn" value="later">あとで</button>
+    <button class="btn primary" value="ok">保存する</button>
+  </div>
+</form></dialog>
+
+<script>
+"use strict";
+/* ================================================================
+   獅子巡行 打ち上げ出席管理
+   ・データの本体は Googleスプレッドシート（Apps Script経由で読み書き）
+   ・起動時は localStorage のキャッシュを先に表示し、裏で最新に差し替える
+   ================================================================ */
+
+/* ---- 接続先をファイルに直書きしたい場合はここに書く（空ならアプリ内で設定） ---- */
+const CONFIG = {
+  GAS_URL: "",   // 例: "https://script.google.com/macros/s/XXXX/exec"
+  TOKEN:   ""    // 例: "karisma-2026-goaisatsu"
+};
+
+const LS_CACHE = "karisma_cache_v1";
+const LS_CONN  = "karisma_conn_v1";
+const LS_THEME = "karisma_theme_v1";
+const LS_PEND  = "karisma_pending_v1";
+
+const $  = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+
+/* ================================================================
+   状態（アプリが今持っているデータ）
+   ================================================================ */
+let state = null;          // {settings, members, dates, attendance}
+let undoSnap = null;       // 1手だけの取り消し用
+let saveTimer = null;      // まとめて保存するためのタイマー
+let saving = false, pendingSave = false;
+let dateAsc = true;        // 日付の並び順
+let currentView = "matrix";
+let viewsStale = false;   // 他タブの表示が古くなっているか
+
+/* ---- 初期データ（起動時に一度だけ入れる名簿） ---- */
+const SEED_GENERAL = ["細谷　吉和","佐藤　弘貴","竹田　智弘","橋本　一則","土田　憲一","伊藤　佳久",
+  "佐藤　幸徳","加藤　聖隆","滝田　貴文","鈴木　篤史","嶋貫　諭","髙橋　秀仁","小林　駿太","佐藤　清人",
+  "粟野ひろゆき","小関　弘成","遠藤　直樹","佐藤　葵","木村　魁誠","須貝　洋明","土田　誠","色摩　真司",
+  "高橋　和久","玉田","柿間　大地","山口　康幸","片倉　壮","金子　仁哉","川崎　龍人","佐藤　匠",
+  "伊藤　慧瑠","巻田　暉","加藤　春や","りょうま","桜井","笹原　皇太","しんご","多勢　彰悟"];
+const SEED_STUDENT = Array.from({length:11}, (_,i)=>"学生"+(i+1));
+/* 既存のExcel（04_カリスマリスト.xlsx）に入っていた練習日。不要なら管理画面から削除できます */
+const SEED_DATES = ["2026-09-08","2026-09-09","2026-09-10","2026-09-11","2026-09-12","2026-09-13",
+  "2026-09-14","2026-09-15","2026-09-16","2026-09-17","2026-09-18"];
+
+/* ================================================================
+   小道具
+   ================================================================ */
+let idSeq = 0;
+function newId(prefix){ idSeq++; return prefix + Date.now().toString(36) + "-" + idSeq.toString(36); }
+function yen(n){ return "¥" + Math.round(Number(n)||0).toLocaleString("ja-JP"); }
+function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function key(mid,did){ return mid + "|" + did; }
+const WD = ["日","月","火","水","木","金","土"];
+function fmtDate(iso, style){
+  const p = String(iso||"").split("-");
+  if(p.length<3) return String(iso||"");
+  const d = new Date(+p[0], +p[1]-1, +p[2]);
+  const w = WD[d.getDay()];
+  if(style==="long") return `${p[0]}年${+p[1]}月${+p[2]}日(${w})`;
+  return `${+p[1]}/${+p[2]}(${w})`;
+}
+function dow(iso){ const p=String(iso||"").split("-"); if(p.length<3) return -1;
+  return new Date(+p[0],+p[1]-1,+p[2]).getDay(); }
+function todayIso(){ const d=new Date();
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+
+let toastTimer=null;
+function toast(msg, actionLabel, actionFn, ms){
+  const t=$("#toast"), b=$("#toastAct");
+  $("#toastMsg").textContent = msg;
+  if(actionLabel){ b.textContent=actionLabel; b.hidden=false; b.onclick=()=>{ t.hidden=true; actionFn&&actionFn(); }; }
+  else { b.hidden=true; b.onclick=null; }
+  t.hidden=false;
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>{ t.hidden=true; }, ms || (actionLabel?7000:2600));
+}
+function setSync(kind, text){
+  const d=$("#syncDot"); d.className = kind||"";
+  $("#syncText").textContent = text||"";
+}
+
+/* ================================================================
+   接続設定
+   ================================================================ */
+function getConn(){
+  let c = {url:"", token:""};
+  try{ c = Object.assign(c, JSON.parse(localStorage.getItem(LS_CONN) || "{}")); }catch(e){}
+  if(CONFIG.GAS_URL) c.url = CONFIG.GAS_URL;
+  if(CONFIG.TOKEN)   c.token = CONFIG.TOKEN;
+  return c;
+}
+function setConn(url, token){
+  try{ localStorage.setItem(LS_CONN, JSON.stringify({url:(url||"").trim(), token:(token||"").trim()})); }catch(e){}
+}
+function connReady(){ const c=getConn(); return !!(c.url && c.token); }
+
+/* ================================================================
+   GAS（受付係）との通信
+   POSTは Content-Type: text/plain で送る。こうすると事前確認の通信
+   （プリフライト）が起きず、Apps Script でもそのまま通る
+   ================================================================ */
+async function api(action, payload){
+  const c = getConn();
+  if(!c.url || !c.token) throw new Error("接続先が未設定です");
+  const body = JSON.stringify({ action, token:c.token, payload: payload||null });
+  try{
+    const res = await fetch(c.url, {
+      method:"POST", mode:"cors", redirect:"follow",
+      headers:{ "Content-Type":"text/plain;charset=utf-8" },
+      body
+    });
+    const txt = await res.text();
+    return unwrap(txt);
+  }catch(err){
+    // POSTが通らない環境向けの保険。取得(load)だけGET方式で再挑戦する
+    if(action === "load"){
+      const u = new URL(c.url);
+      u.searchParams.set("action","load");
+      u.searchParams.set("token",c.token);
+      const res2 = await fetch(u.toString(), { method:"GET", mode:"cors", redirect:"follow" });
+      return unwrap(await res2.text());
+    }
+    throw err;
+  }
+}
+function unwrap(txt){
+  let j;
+  try{ j = JSON.parse(txt); }
+  catch(e){ throw new Error("応答を読み取れません。ウェブアプリのURLとアクセス権限（全員）をご確認ください"); }
+  if(!j.ok) throw new Error(j.error || "サーバー側でエラーが発生しました");
+  return j.data;
+}
+
+/* ================================================================
+   データの形（サーバーとやりとりする形 ⇄ 画面で使う形）
+   ================================================================ */
+function emptyState(){
+  return {
+    settings:{ defaultFee:2000, title:"獅子巡行 打ち上げ出席管理" },
+    members:[], dates:[], attendance:{}
+  };
+}
+function seedState(){
+  const s = emptyState();
+  let ord = 0;
+  SEED_GENERAL.forEach(n => s.members.push({id:newId("m"), name:n, kana:"", group:"一般", order:++ord, active:true}));
+  SEED_STUDENT.forEach(n => s.members.push({id:newId("m"), name:n, kana:"", group:"学生", order:++ord, active:true}));
+  let dord = 0;
+  SEED_DATES.forEach(d => s.dates.push({id:newId("d"), date:d, venue:"カリスマ", fee:2000, memo:"", order:++dord}));
+  return s;
+}
+/* 保存用（配列）へ */
+function toWire(s){
+  const att = [];
+  for(const k in s.attendance){
+    const v = s.attendance[k];
+    if(!v || (!v.p && !v.c)) continue;
+    const i = k.indexOf("|");
+    att.push({ memberId:k.slice(0,i), dateId:k.slice(i+1), present:!!v.p, collected:!!v.c });
+  }
+  return { settings:s.settings, members:s.members, dates:s.dates, attendance:att };
+}
+/* 受け取ったもの（配列）を画面用へ */
+function fromWire(w){
+  const s = emptyState();
+  if(!w) return s;
+  s.settings = Object.assign(s.settings, w.settings||{});
+  s.settings.defaultFee = Number(s.settings.defaultFee)||2000;
+  s.members = (w.members||[]).map((m,i)=>({
+    id:String(m.id||newId("m")), name:String(m.name||""), kana:String(m.kana||""),
+    group:String(m.group||""), order:Number(m.order)||i+1, active:m.active!==false
+  }));
+  s.dates = (w.dates||[]).map((d,i)=>({
+    id:String(d.id||newId("d")), date:String(d.date||""), venue:String(d.venue||"カリスマ"),
+    fee:Number(d.fee)||s.settings.defaultFee, memo:String(d.memo||""), order:Number(d.order)||i+1
+  }));
+  (w.attendance||[]).forEach(a=>{
+    if(!a || !a.memberId || !a.dateId) return;
+    s.attendance[key(String(a.memberId),String(a.dateId))] = { p:!!a.present, c:!!a.collected };
+  });
+  return s;
+}
+
+/* ================================================================
+   保存（連打しても1回にまとめる／圏外なら保留）
+   ================================================================ */
+function markDirty(){
+  saveCache();
+  render();
+  scheduleSave();
+}
+/* セル1つだけの変更。表を丸ごと描き直すとスクロール位置が戻ってしまうので、
+   触ったセルとその行・合計だけを書き換える */
+function markDirtyCell(mid, did){
+  saveCache();
+  const filtered = $("#fUnpaid").checked || !!$("#fDate").value;
+  if(currentView === "matrix" && !filtered && patchCell(mid, did)){
+    renderGrand();
+    viewsStale = true;           // 他のタブは開いた時に描き直す
+  }else{
+    render();
+  }
+  scheduleSave();
+}
+/* 1セルとその行・合計行だけを更新する */
+function patchCell(mid, did){
+  const td = $(`#matrix td.cell[data-m="${mid}"][data-d="${did}"]`);
+  if(!td) return false;
+  const a = att(mid, did);
+  td.dataset.p = a.p ? 1 : 0;
+  td.dataset.c = a.c ? 1 : 0;
+  td.innerHTML = `<span class="mark">${a.p?"✓":""}</span>` +
+                 (a.p ? `<span class="yen" data-yen="1">${a.c?"済":"¥"}</span>` : "");
+  // 行の右端（回数・負担額・未集金）
+  const m = state.members.find(x=>x.id===mid);
+  const sums = td.parentElement.querySelectorAll("td.sum");
+  if(m && sums.length === 3){
+    const st = memberStats(m);
+    sums[0].textContent = st.cnt;
+    sums[1].textContent = yen(st.total);
+    sums[2].textContent = st.unpaid ? yen(st.unpaid) : "—";
+    sums[2].style.color = st.unpaid > 0 ? "var(--danger)" : "";
+    sums[2].style.fontWeight = st.unpaid > 0 ? "700" : "";
+  }
+  // 合計行
+  const ftr = $("#matrix tfoot tr");
+  const d = state.dates.find(x=>x.id===did);
+  if(ftr && d){
+    const s = dateStats(d);
+    const fc = ftr.children[td.cellIndex];
+    if(fc) fc.innerHTML = `${s.cnt}名<span class="sub">${s.unpaid>0?"未"+yen(s.unpaid):yen(s.total)}</span>`;
+    const g = grandStats(), n = ftr.children.length;
+    if(n >= 3){
+      ftr.children[n-3].textContent = g.cnt;
+      ftr.children[n-2].textContent = yen(g.total);
+      ftr.children[n-1].textContent = yen(g.unpaid);
+    }
+  }
+  return true;
+}
+function saveCache(){
+  try{ localStorage.setItem(LS_CACHE, JSON.stringify(toWire(state))); }catch(e){}
+}
+function scheduleSave(){
+  if(!connReady()){ setSync("", "この端末のみ"); return; }
+  clearTimeout(saveTimer);
+  setSync("busy","保存待ち");
+  saveTimer = setTimeout(doSave, 800);
+}
+async function doSave(){
+  if(!connReady()) return;
+  if(saving){ pendingSave = true; return; }
+  if(!navigator.onLine){
+    try{ localStorage.setItem(LS_PEND, "1"); }catch(e){}
+    setSync("err","圏外：保留中"); return;
+  }
+  saving = true; setSync("busy","保存中…");
+  try{
+    await api("save", toWire(state));
+    try{ localStorage.removeItem(LS_PEND); }catch(e){}
+    setSync("ok","保存しました " + new Date().toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"}));
+  }catch(err){
+    try{ localStorage.setItem(LS_PEND,"1"); }catch(e){}
+    setSync("err","保存できません");
+    toast("保存に失敗：" + err.message, "再試行", ()=>doSave(), 9000);
+  }finally{
+    saving = false;
+    if(pendingSave){ pendingSave=false; scheduleSave(); }
+  }
+}
+window.addEventListener("online", ()=>{
+  let pend=null; try{ pend = localStorage.getItem(LS_PEND); }catch(e){}
+  if(pend){ toast("オンラインに復帰。保存します"); doSave(); }
+});
+window.addEventListener("offline", ()=> setSync("err","圏外"));
+
+/* ================================================================
+   起動
+   ================================================================ */
+async function boot(){
+  // ダークモード
+  let th=null; try{ th = localStorage.getItem(LS_THEME); }catch(e){}
+  if(!th) th = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  document.documentElement.dataset.theme = th;
+
+  // ① キャッシュを即表示
+  let cached=null;
+  try{ cached = JSON.parse(localStorage.getItem(LS_CACHE) || "null"); }catch(e){}
+  state = cached ? fromWire(cached) : null;
+  if(state){ render(); setSync("", "手元の記録を表示中"); }
+
+  bindUI();
+
+  // 接続先が未設定なら、最初の設定ダイアログを出す
+  if(!connReady()){
+    if(!state){ state = seedState(); saveCache(); render(); }
+    setSync("", "この端末のみ");
+    openSetup();
+    return;
+  }
+
+  // ② 裏で最新を取得して差し替え
+  await reload(!cached);
+}
+
+async function reload(showSeedIfEmpty){
+  if(!connReady()){ toast("接続先が未設定です。管理タブで設定してください"); return; }
+  setSync("busy","最新を取得中…");
+  try{
+    const w = await api("load");
+    const fresh = fromWire(w);
+    if(fresh.members.length === 0 && fresh.dates.length === 0){
+      // クラウド側が空＝初回。名簿をシードして書き戻す
+      state = seedState();
+      render(); saveCache();
+      setSync("busy","初期名簿を登録中…");
+      await api("save", toWire(state));
+      setSync("ok","初期名簿を登録しました");
+      toast("初期名簿(" + state.members.length + "名)と練習日を登録しました");
+    }else{
+      state = fresh;
+      saveCache(); render();
+      setSync("ok","最新です " + new Date().toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"}));
+    }
+  }catch(err){
+    if(!state){ state = seedState(); saveCache(); render(); }
+    setSync("err","取得できません");
+    toast("読み込み失敗：" + err.message, "再試行", ()=>reload(), 9000);
+  }
+}
+
+/* ================================================================
+   並び順・集計
+   ================================================================ */
+function sortedDates(){
+  const a = state.dates.slice();
+  a.sort((x,y)=>{
+    const c = String(x.date).localeCompare(String(y.date));
+    if(c) return dateAsc ? c : -c;
+    return (x.order||0)-(y.order||0);
+  });
+  return a;
+}
+function sortedMembers(){
+  return state.members.slice().sort((a,b)=>(a.order||0)-(b.order||0));
+}
+function att(mid,did){ return state.attendance[key(mid,did)] || {p:false,c:false}; }
+
+/* メンバー1人分の集計 */
+function memberStats(m){
+  let cnt=0, total=0, paid=0, unpaid=0;
+  state.dates.forEach(d=>{
+    const a = att(m.id,d.id);
+    if(!a.p) return;
+    cnt++; const fee = Number(d.fee)||0; total += fee;
+    if(a.c) paid += fee; else unpaid += fee;
+  });
+  const rate = state.dates.length ? cnt/state.dates.length : 0;
+  return {cnt,total,paid,unpaid,rate};
+}
+/* 開催日1日分の集計 */
+function dateStats(d){
+  let cnt=0, total=0, paid=0, unpaid=0, paidCnt=0;
+  const fee = Number(d.fee)||0;
+  state.members.forEach(m=>{
+    const a = att(m.id,d.id);
+    if(!a.p) return;
+    cnt++; total += fee;
+    if(a.c){ paid += fee; paidCnt++; } else unpaid += fee;
+  });
+  return {cnt,total,paid,unpaid,paidCnt,fee};
+}
+function grandStats(){
+  let cnt=0,total=0,paid=0,unpaid=0;
+  state.dates.forEach(d=>{ const s=dateStats(d); cnt+=s.cnt; total+=s.total; paid+=s.paid; unpaid+=s.unpaid; });
+  return {cnt,total,paid,unpaid};
+}
+
+/* 絞り込み後の表示メンバー */
+function visibleMembers(){
+  const q = ($("#qName").value||"").trim().toLowerCase();
+  const onlyUnpaid = $("#fUnpaid").checked;
+  const showInactive = $("#fInactive").checked;
+  const dId = $("#fDate").value;
+  return sortedMembers().filter(m=>{
+    if(!showInactive && !m.active) return false;
+    if(q && !(m.name.toLowerCase().includes(q) || (m.kana||"").toLowerCase().includes(q))) return false;
+    if(onlyUnpaid && memberStats(m).unpaid <= 0) return false;
+    if(dId && !att(m.id,dId).p) return false;
+    return true;
+  });
+}
+
+/* ================================================================
+   描画
+   ================================================================ */
+function render(){
+  if(!state) return;
+  viewsStale = false;
+  $("#appTitle").textContent = state.settings.title || "獅子巡行 打ち上げ出席管理";
+  document.title = state.settings.title || "獅子巡行 打ち上げ出席管理";
+  $("#printTitle").textContent = (state.settings.title||"") + "　（印刷日：" + fmtDate(todayIso(),"long") + "）";
+  renderFilters();
+  renderGrand();
+  renderMatrix();
+  renderDay();
+  renderStats();
+  renderAdmin();
+}
+
+function renderFilters(){
+  const sel = $("#fDate"), cur = sel.value;
+  sel.innerHTML = '<option value="">日で絞らない</option>' +
+    sortedDates().map(d=>`<option value="${esc(d.id)}">${esc(fmtDate(d.date))} ${esc(d.venue||"")}</option>`).join("");
+  if(cur && state.dates.some(d=>d.id===cur)) sel.value = cur;
+  $("#btnDateOrder").textContent = dateAsc ? "日付 ↑" : "日付 ↓";
+  // 会場・区分の入力候補
+  $("#venues").innerHTML = Array.from(new Set(state.dates.map(d=>d.venue).filter(Boolean).concat(["カリスマ"])))
+    .map(v=>`<option value="${esc(v)}">`).join("");
+  $("#groups").innerHTML = Array.from(new Set(state.members.map(m=>m.group).filter(Boolean).concat(["一般","学生"])))
+    .map(v=>`<option value="${esc(v)}">`).join("");
+}
+
+function renderGrand(){
+  const g = grandStats();
+  const prog = g.total ? Math.round(g.paid/g.total*100) : 0;
+  $("#grandTotal").innerHTML = `
+    <div class="gt"><div class="k">延べ参加数</div><div class="v">${g.cnt} <span style="font-size:12px;font-weight:400">人回</span></div></div>
+    <div class="gt"><div class="k">総額</div><div class="v">${yen(g.total)}</div></div>
+    <div class="gt"><div class="k">集金済（${prog}%）</div><div class="v">${yen(g.paid)}</div></div>
+    <div class="gt ${g.unpaid>0?"warn":""}"><div class="k">未集金</div><div class="v">${yen(g.unpaid)}</div></div>`;
+}
+
+/* 表の高さを画面の残りに合わせる。下のタブバーに合計行が隠れるのを防ぐ */
+function fitTable(){
+  const wrap = $("#view-matrix .tablewrap");
+  if(!wrap || $("#view-matrix").hidden) return;
+  const docTop = wrap.getBoundingClientRect().top + window.scrollY;   // ページ最上部から表までの高さ
+  const navH   = $("nav.tabs").offsetHeight || 64;
+  const h = window.innerHeight - docTop - navH - 12;
+  wrap.style.maxHeight = Math.max(240, Math.round(h)) + "px";
+}
+
+function renderMatrix(){
+  const wrap = $("#matrix").closest(".tablewrap");
+  const sx = wrap ? wrap.scrollLeft : 0, sy = wrap ? wrap.scrollTop : 0;
+  const ds = sortedDates(), ms = visibleMembers();
+  if(ms.length===0 || ds.length===0){
+    $("#matrix").innerHTML = `<tbody><tr><td style="padding:24px;text-align:center;color:var(--muted)">`+
+      (ds.length===0 ? "開催日がありません。「管理」タブで追加してください。" : "該当するメンバーがいません。") +
+      `</td></tr></tbody>`;
+    if(wrap){ wrap.scrollLeft = sx; wrap.scrollTop = sy; }
+    return;
+  }
+  let h = "<thead><tr>";
+  h += `<th class="colname">氏名</th>`;
+  ds.forEach(d=>{
+    const w = dow(d.date), cls = w===0?"sun":(w===6?"sat":"");
+    h += `<th><span class="${cls}">${esc(fmtDate(d.date))}</span><span class="v">${esc(d.venue||"")}</span></th>`;
+  });
+  h += `<th class="sum">回数</th><th class="sum">負担額</th><th class="sum">未集金</th></tr></thead><tbody>`;
+
+  ms.forEach(m=>{
+    const st = memberStats(m);
+    h += `<tr class="${m.active?"":"inactive"}">`;
+    h += `<th class="colname" scope="row"><span class="nm">${esc(m.name)}</span>` +
+         (m.kana?`<span class="kana">${esc(m.kana)}</span>`:"") + `</th>`;
+    ds.forEach(d=>{
+      const a = att(m.id,d.id);
+      h += `<td class="cell" data-m="${esc(m.id)}" data-d="${esc(d.id)}" data-p="${a.p?1:0}" data-c="${a.c?1:0}">` +
+           `<span class="mark">${a.p?"✓":""}</span>` +
+           (a.p?`<span class="yen" data-yen="1">${a.c?"済":"¥"}</span>`:"") + `</td>`;
+    });
+    h += `<td class="sum num">${st.cnt}</td><td class="sum num">${yen(st.total)}</td>` +
+         `<td class="sum num" ${st.unpaid>0?'style="color:var(--danger);font-weight:700"':""}>${st.unpaid?yen(st.unpaid):"—"}</td></tr>`;
+  });
+
+  h += "</tbody><tfoot><tr>";
+  h += `<th class="colname">合計 <span class="sub">${ms.length}名表示</span></th>`;
+  ds.forEach(d=>{
+    const s = dateStats(d);
+    h += `<td style="text-align:center">${s.cnt}名<span class="sub">${s.unpaid>0?"未"+yen(s.unpaid):yen(s.total)}</span></td>`;
+  });
+  const g = grandStats();
+  h += `<td class="num">${g.cnt}</td><td class="num">${yen(g.total)}</td><td class="num">${yen(g.unpaid)}</td>`;
+  h += "</tr></tfoot>";
+  $("#matrix").innerHTML = h;
+  if(wrap){ wrap.scrollLeft = sx; wrap.scrollTop = sy; }
+  fitTable();
+}
+
+function renderDay(){
+  const sel = $("#daySelect"), ds = sortedDates();
+  const cur = sel.value;
+  sel.innerHTML = ds.map(d=>`<option value="${esc(d.id)}">${esc(fmtDate(d.date,"long"))}　${esc(d.venue||"")}</option>`).join("");
+  if(cur && ds.some(d=>d.id===cur)) sel.value = cur;
+  else{
+    // 既定は「今日以降で最も近い日」。なければ最後の日
+    const t = todayIso();
+    const near = ds.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))).find(d=>d.date>=t);
+    if(near) sel.value = near.id; else if(ds.length) sel.value = ds[ds.length-1].id;
+  }
+  const d = state.dates.find(x=>x.id===sel.value);
+  const pane = $("#dayPane");
+  if(!d){ pane.innerHTML = `<div class="card muted">開催日がありません。「管理」タブで追加してください。</div>`; return; }
+
+  const s = dateStats(d);
+  const joined = sortedMembers().filter(m=>att(m.id,d.id).p);
+  const notJoined = sortedMembers().filter(m=>m.active && !att(m.id,d.id).p);
+
+  let h = `<div class="grandtotal">
+    <div class="gt"><div class="k">参加人数</div><div class="v">${s.cnt} <span style="font-size:12px;font-weight:400">名</span></div></div>
+    <div class="gt"><div class="k">一人</div><div class="v">${yen(s.fee)}</div></div>
+    <div class="gt"><div class="k">集金予定</div><div class="v">${yen(s.total)}</div></div>
+    <div class="gt ${s.unpaid>0?"warn":""}"><div class="k">未集金（${s.cnt-s.paidCnt}名）</div><div class="v">${yen(s.unpaid)}</div></div>
+  </div>`;
+
+  h += `<div class="card"><h2>集金チェックリスト　<span class="pill">${s.paidCnt} / ${s.cnt} 名</span></h2>`;
+  if(d.memo) h += `<p class="small muted" style="margin-top:0">メモ：${esc(d.memo)}</p>`;
+  if(joined.length===0){
+    h += `<p class="muted">まだ参加者がいません。下の「参加者を追加」から選んでください。</p>`;
+  }else{
+    h += `<ul class="daycheck" id="dayList">` + joined.map(m=>{
+      const a = att(m.id,d.id);
+      return `<li class="${a.c?"paid":""}" data-m="${esc(m.id)}" data-d="${esc(d.id)}">
+        <span class="box">${a.c?"✓":""}</span>
+        <span class="nm">${esc(m.name)}</span>
+        <span class="amt">${yen(d.fee)}</span></li>`;
+    }).join("") + `</ul>
+    <div class="row" style="margin-top:10px">
+      <button class="btn sm" data-allpaid="1">全員を集金済にする</button>
+      <button class="btn sm" data-allunpaid="1">全員を未集金に戻す</button>
+    </div>`;
+  }
+  h += `</div>`;
+
+  h += `<div class="card"><h2>参加者を追加（不参加の人）</h2>
+    <p class="small muted" style="margin-top:0">名前を押すとこの日の参加になります。</p>
+    <div class="row" id="addJoin">` +
+    (notJoined.length ? notJoined.map(m=>`<button class="btn sm" data-add="${esc(m.id)}" data-d="${esc(d.id)}">＋ ${esc(m.name)}</button>`).join("")
+      : `<span class="muted small">全員が参加済みです。</span>`) +
+    `</div></div><div style="height:20px"></div>`;
+  pane.innerHTML = h;
+}
+
+function renderStats(){
+  const ms = sortedMembers(), ds = sortedDates();
+  let h = "";
+
+  // 会場別
+  const byVenue = {};
+  ds.forEach(d=>{
+    const v = d.venue || "(未設定)";
+    const s = dateStats(d);
+    if(!byVenue[v]) byVenue[v] = {days:0,cnt:0,total:0,paid:0,unpaid:0};
+    const b = byVenue[v];
+    b.days++; b.cnt+=s.cnt; b.total+=s.total; b.paid+=s.paid; b.unpaid+=s.unpaid;
+  });
+  h += `<div class="card"><h2>会場別</h2><div style="overflow-x:auto"><table class="list">
+    <thead><tr><th>会場</th><th class="num">開催</th><th class="num">延べ人数</th><th class="num">総額</th><th class="num">集金済</th><th class="num">未集金</th></tr></thead><tbody>`;
+  const vk = Object.keys(byVenue);
+  if(!vk.length) h += `<tr><td colspan="6" class="muted">データがありません</td></tr>`;
+  vk.forEach(v=>{ const b=byVenue[v];
+    h += `<tr><td>${esc(v)}</td><td class="num">${b.days}回</td><td class="num">${b.cnt}</td>
+      <td class="num">${yen(b.total)}</td><td class="num">${yen(b.paid)}</td>
+      <td class="num" ${b.unpaid>0?'style="color:var(--danger)"':""}>${yen(b.unpaid)}</td></tr>`;
+  });
+  h += `</tbody></table></div></div>`;
+
+  // 日別
+  h += `<div class="card"><h2>開催日別</h2><div style="overflow-x:auto"><table class="list">
+    <thead><tr><th>日付</th><th>会場</th><th class="num">一人</th><th class="num">人数</th><th class="num">集金予定</th><th class="num">集金済</th><th class="num">未集金</th></tr></thead><tbody>`;
+  if(!ds.length) h += `<tr><td colspan="7" class="muted">データがありません</td></tr>`;
+  ds.forEach(d=>{ const s=dateStats(d);
+    h += `<tr><td style="white-space:nowrap">${esc(fmtDate(d.date))}</td><td>${esc(d.venue||"")}</td>
+      <td class="num">${yen(s.fee)}</td><td class="num">${s.cnt}</td><td class="num">${yen(s.total)}</td>
+      <td class="num">${yen(s.paid)}</td>
+      <td class="num" ${s.unpaid>0?'style="color:var(--danger);font-weight:700"':""}>${s.unpaid?yen(s.unpaid):"—"}</td></tr>`;
+  });
+  h += `</tbody></table></div></div>`;
+
+  // 個人別
+  h += `<div class="card"><h2>個人別</h2><div style="overflow-x:auto"><table class="list">
+    <thead><tr><th>氏名</th><th>区分</th><th class="num">回数</th><th class="num">参加率</th><th class="num">負担額</th><th class="num">集金済</th><th class="num">未集金</th></tr></thead><tbody>`;
+  if(!ms.length) h += `<tr><td colspan="7" class="muted">データがありません</td></tr>`;
+  ms.forEach(m=>{ const s=memberStats(m);
+    h += `<tr ${m.active?"":'style="opacity:.55"'}><td style="white-space:nowrap">${esc(m.name)}${m.active?"":' <span class="pill gray">退会</span>'}</td>
+      <td class="small">${esc(m.group||"")}</td><td class="num">${s.cnt}</td>
+      <td class="num">${Math.round(s.rate*100)}%</td><td class="num">${yen(s.total)}</td>
+      <td class="num">${yen(s.paid)}</td>
+      <td class="num" ${s.unpaid>0?'style="color:var(--danger);font-weight:700"':""}>${s.unpaid?yen(s.unpaid):"—"}</td></tr>`;
+  });
+  const g = grandStats();
+  h += `</tbody><tfoot><tr style="font-weight:700;background:var(--head)">
+    <td>合計</td><td></td><td class="num">${g.cnt}</td><td class="num"></td>
+    <td class="num">${yen(g.total)}</td><td class="num">${yen(g.paid)}</td><td class="num">${yen(g.unpaid)}</td>
+    </tr></tfoot></table></div></div><div style="height:20px"></div>`;
+
+  $("#statsPane").innerHTML = h;
+}
+
+function renderAdmin(){
+  // 開催日一覧
+  const ds = sortedDates();
+  $("#dateList").innerHTML = ds.length ? `<div style="overflow-x:auto"><table class="list">
+    <thead><tr><th>日付</th><th>会場</th><th class="num">一人</th><th class="num">参加</th><th></th></tr></thead><tbody>` +
+    ds.map(d=>{ const s=dateStats(d);
+      return `<tr><td style="white-space:nowrap">${esc(fmtDate(d.date))}</td><td>${esc(d.venue||"")}</td>
+        <td class="num">${yen(d.fee)}</td><td class="num">${s.cnt}名</td>
+        <td style="text-align:right"><button class="btn sm" data-editdate="${esc(d.id)}">編集</button></td></tr>`;
+    }).join("") + `</tbody></table></div>`
+    : `<p class="muted small">開催日がまだありません。</p>`;
+
+  // メンバー一覧（並べ替え可）
+  $("#memberList").innerHTML = sortedMembers().map(m=>{
+    const s = memberStats(m);
+    return `<li data-id="${esc(m.id)}" ${m.active?"":'style="opacity:.55"'}>
+      <span class="handle" data-handle="1">☰</span>
+      <span class="nm">${esc(m.name)}${m.active?"":' <span class="pill gray">退会</span>'}
+        <small>${esc(m.kana||"ふりがな未設定")}${m.group?"・"+esc(m.group):""}　${s.cnt}回 ${yen(s.total)}</small></span>
+      <button class="btn sm" data-editmember="${esc(m.id)}">編集</button></li>`;
+  }).join("");
+
+  $("#setTitle").value = state.settings.title || "";
+  $("#setFee").value = state.settings.defaultFee || 2000;
+  const c = getConn();
+  if(document.activeElement !== $("#setUrl"))   $("#setUrl").value = c.url || "";
+  if(document.activeElement !== $("#setToken")) $("#setToken").value = c.token || "";
+}
+
+/* ================================================================
+   取り消し（1手だけ）
+   ================================================================ */
+function pushUndo(label){
+  undoSnap = { label, wire: JSON.stringify(toWire(state)) };
+  updateUndoBtn();
+}
+function doUndo(){
+  if(!undoSnap) return;
+  const label = undoSnap.label;
+  state = fromWire(JSON.parse(undoSnap.wire));
+  undoSnap = null;
+  markDirty();
+  updateUndoBtn();
+  toast("元に戻しました（" + label + "）");
+}
+function updateUndoBtn(){
+  const b = $("#btnUndo");
+  if(!b) return;
+  b.disabled = !undoSnap;
+  b.title = undoSnap ? ("「" + undoSnap.label + "」を取り消す") : "取り消せる操作はありません";
+}
+function afterChange(label){
+  markDirty();
+  if(label) toast(label, "元に戻す", doUndo);
+}
+
+/* ================================================================
+   操作
+   ================================================================ */
+function togglePresent(mid,did){
+  pushUndo("出席");
+  const k = key(mid,did), a = state.attendance[k] || {p:false,c:false};
+  a.p = !a.p;
+  if(!a.p) a.c = false;           // 不参加にしたら集金済も外す
+  state.attendance[k] = a;
+  markDirtyCell(mid, did);
+}
+function toggleCollected(mid,did){
+  const k = key(mid,did), a = state.attendance[k] || {p:false,c:false};
+  if(!a.p){ toast("先に「参加」にしてください"); return; }
+  pushUndo("集金");
+  a.c = !a.c; state.attendance[k] = a;
+  if(currentView === "day"){ saveCache(); renderDay(); viewsStale = true; scheduleSave(); }
+  else markDirtyCell(mid, did);
+  if(navigator.vibrate) navigator.vibrate(12);
+}
+
+/* ================================================================
+   画面の配線
+   ================================================================ */
+function bindUI(){
+  // タブ切替
+  $$("nav.tabs button").forEach(b=>{
+    b.addEventListener("click", ()=>{
+      currentView = b.dataset.view;
+      $$("nav.tabs button").forEach(x=>x.setAttribute("aria-selected", String(x===b)));
+      ["matrix","day","stats","admin"].forEach(v=> $("#view-"+v).hidden = (v!==currentView));
+      if(viewsStale) render();
+      fitTable();
+      window.scrollTo(0,0);
+    });
+  });
+
+  // ダークモード
+  $("#btnTheme").addEventListener("click", ()=>{
+    const cur = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = cur;
+    try{ localStorage.setItem(LS_THEME, cur); }catch(e){}
+  });
+
+  // 絞り込み
+  ["#qName","#fUnpaid","#fInactive","#fDate"].forEach(s=>{
+    $(s).addEventListener("input", ()=>{ renderGrand(); renderMatrix(); });
+    $(s).addEventListener("change", ()=>{ renderGrand(); renderMatrix(); });
+  });
+  $("#btnUndo").addEventListener("click", doUndo);
+  document.addEventListener("keydown", e=>{
+    if((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z" && !e.shiftKey){
+      const t = e.target.tagName;
+      if(t === "INPUT" || t === "TEXTAREA") return;   // 文字入力中は邪魔しない
+      e.preventDefault(); doUndo();
+    }
+  });
+  $("#btnDateOrder").addEventListener("click", ()=>{ dateAsc = !dateAsc; render(); });
+  $("#btnPrint").addEventListener("click", ()=> window.print());
+
+  /* --- マトリクスのセル操作：タップで参加、長押しで集金 --- */
+  const mx = $("#matrix");
+  let pressTimer=null, longFired=false, downCell=null;
+  mx.addEventListener("pointerdown", e=>{
+    const cell = e.target.closest("td.cell"); if(!cell) return;
+    if(e.target.dataset.yen){ // 右下の ¥ を直接押した場合
+      longFired = true; downCell = null;
+      toggleCollected(cell.dataset.m, cell.dataset.d);
+      return;
+    }
+    downCell = cell; longFired = false;
+    clearTimeout(pressTimer);
+    pressTimer = setTimeout(()=>{
+      longFired = true;
+      toggleCollected(cell.dataset.m, cell.dataset.d);
+    }, 500);
+  });
+  const cancelPress = ()=>{ clearTimeout(pressTimer); };
+  mx.addEventListener("pointermove", cancelPress);
+  mx.addEventListener("pointercancel", ()=>{ cancelPress(); downCell=null; longFired=false; });
+  mx.addEventListener("scroll", cancelPress, {passive:true});
+  mx.addEventListener("pointerup", e=>{
+    clearTimeout(pressTimer);
+    const cell = e.target.closest("td.cell");
+    if(!longFired && cell && cell===downCell) togglePresent(cell.dataset.m, cell.dataset.d);
+    downCell = null; longFired = false;
+  });
+  mx.addEventListener("contextmenu", e=>{   // PCは右クリックでも集金切替
+    const cell = e.target.closest("td.cell"); if(!cell) return;
+    e.preventDefault();
+    toggleCollected(cell.dataset.m, cell.dataset.d);
+  });
+
+  /* --- 日別ビュー --- */
+  $("#daySelect").addEventListener("change", renderDay);
+  $("#dayPane").addEventListener("click", e=>{
+    const li = e.target.closest("#dayList li");
+    if(li){ toggleCollected(li.dataset.m, li.dataset.d); return; }
+    const add = e.target.closest("[data-add]");
+    if(add){ togglePresent(add.dataset.add, add.dataset.d); return; }
+    const allp = e.target.closest("[data-allpaid]"), allu = e.target.closest("[data-allunpaid]");
+    if(allp || allu){
+      const did = $("#daySelect").value;
+      pushUndo("一括集金");
+      state.members.forEach(m=>{
+        const k = key(m.id,did), a = state.attendance[k];
+        if(a && a.p) a.c = !!allp;
+      });
+      afterChange(allp ? "全員を集金済にしました" : "全員を未集金に戻しました");
+    }
+  });
+
+  /* --- 管理：開催日 --- */
+  $("#btnAddDate").addEventListener("click", ()=> openDateDialog(null));
+  $("#dateList").addEventListener("click", e=>{
+    const b = e.target.closest("[data-editdate]"); if(b) openDateDialog(b.dataset.editdate);
+  });
+
+  /* --- 管理：メンバー --- */
+  $("#btnAddMember").addEventListener("click", ()=> openMemberDialog(null));
+  $("#memberList").addEventListener("click", e=>{
+    const b = e.target.closest("[data-editmember]"); if(b) openMemberDialog(b.dataset.editmember);
+  });
+  $("#btnBulkAdd").addEventListener("click", openBulkDialog);
+  $("#btnSortKana").addEventListener("click", ()=>{
+    pushUndo("並べ替え");
+    const a = state.members.slice().sort((x,y)=>
+      (x.kana||x.name).localeCompare(y.kana||y.name, "ja"));
+    a.forEach((m,i)=> m.order = i+1);
+    afterChange("ふりがな順に並べ替えました");
+  });
+  $("#btnSortCount").addEventListener("click", ()=>{
+    pushUndo("並べ替え");
+    const a = state.members.slice().sort((x,y)=> memberStats(y).cnt - memberStats(x).cnt ||
+      (x.kana||x.name).localeCompare(y.kana||y.name,"ja"));
+    a.forEach((m,i)=> m.order = i+1);
+    afterChange("参加回数の多い順に並べ替えました");
+  });
+  bindDragSort();
+  window.addEventListener("resize", fitTable);
+  window.addEventListener("orientationchange", ()=> setTimeout(fitTable, 250));
+  updateUndoBtn();
+
+  /* --- データ入出力 --- */
+  $("#btnExcel").addEventListener("click", exportExcel);
+  $("#btnCsv").addEventListener("click", exportCsv);
+  $("#btnJson").addEventListener("click", exportJson);
+  $("#inExcel").addEventListener("change", e=>{ if(e.target.files[0]) importExcel(e.target.files[0]); e.target.value=""; });
+  $("#inJson").addEventListener("change", e=>{ if(e.target.files[0]) importJson(e.target.files[0]); e.target.value=""; });
+
+  /* --- 設定 --- */
+  $("#btnSaveSettings").addEventListener("click", ()=>{
+    pushUndo("設定");
+    state.settings.title = $("#setTitle").value.trim() || "獅子巡行 打ち上げ出席管理";
+    state.settings.defaultFee = Math.max(0, Number($("#setFee").value)||0);
+    afterChange("設定を保存しました");
+  });
+  $("#btnSaveConn").addEventListener("click", async ()=>{
+    setConn($("#setUrl").value, $("#setToken").value);
+    if(!connReady()){ toast("URLと合言葉の両方を入力してください"); return; }
+    await reload();
+  });
+  $("#btnReload").addEventListener("click", ()=> reload());
+
+  /* --- 危険な操作 --- */
+  $("#btnClearAttendance").addEventListener("click", ()=>{
+    if(!confirm("出席記録をすべて消します。メンバーと開催日は残ります。\nよろしいですか？")) return;
+    pushUndo("全消去");
+    state.attendance = {};
+    afterChange("出席記録を消去しました");
+  });
+  $("#btnClearAll").addEventListener("click", ()=>{
+    if(!confirm("メンバー・開催日・出席記録をすべて消して、初期名簿に戻します。\n【この操作は取り消せますが、保存後は元に戻せません】\nよろしいですか？")) return;
+    if(!confirm("本当に初期化してよろしいですか？")) return;
+    pushUndo("初期化");
+    state = seedState();
+    afterChange("初期名簿に戻しました");
+  });
+
+  /* --- 最初の設定ダイアログ --- */
+  $("#dlgSetup").addEventListener("close", async ()=>{
+    if($("#dlgSetup").returnValue === "ok"){
+      setConn($("#suUrl").value, $("#suToken").value);
+      if(connReady()) await reload();
+      else toast("URLと合言葉の両方を入れてください。管理タブからいつでも設定できます", null, null, 6000);
+    }else{
+      toast("この端末だけで使います。管理タブでいつでもクラウド設定できます", null, null, 5000);
+    }
+  });
+}
+
+/* ---- 名簿のドラッグ並べ替え（指・マウス両対応） ---- */
+function bindDragSort(){
+  const list = $("#memberList");
+  let dragEl=null, startY=0;
+  list.addEventListener("pointerdown", e=>{
+    const h = e.target.closest("[data-handle]"); if(!h) return;
+    dragEl = h.closest("li"); if(!dragEl) return;
+    startY = e.clientY;
+    dragEl.classList.add("dragging");
+    h.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+  list.addEventListener("pointermove", e=>{
+    if(!dragEl) return;
+    e.preventDefault();
+    const items = Array.from(list.children).filter(li=>li!==dragEl);
+    let target=null;
+    for(const li of items){
+      const r = li.getBoundingClientRect();
+      if(e.clientY >= r.top && e.clientY <= r.bottom){ target = {li, after: e.clientY > r.top + r.height/2}; break; }
+    }
+    items.forEach(li=>li.classList.remove("over"));
+    if(target){
+      target.li.classList.add("over");
+      if(target.after) target.li.after(dragEl); else target.li.before(dragEl);
+    }
+  });
+  const endDrag = ()=>{
+    if(!dragEl) return;
+    dragEl.classList.remove("dragging");
+    Array.from(list.children).forEach(li=>li.classList.remove("over"));
+    dragEl = null;
+    // 画面上の並びを order に反映
+    pushUndo("並べ替え");
+    const ids = Array.from(list.children).map(li=>li.dataset.id);
+    ids.forEach((id,i)=>{ const m = state.members.find(x=>x.id===id); if(m) m.order = i+1; });
+    markDirty();
+  };
+  list.addEventListener("pointerup", endDrag);
+  list.addEventListener("pointercancel", endDrag);
+}
+
+/* ================================================================
+   ダイアログ
+   ================================================================ */
+let editingDateId = null;
+function openDateDialog(id){
+  editingDateId = id;
+  const d = id ? state.dates.find(x=>x.id===id) : null;
+  $("#dlgDateTitle").textContent = d ? "開催日を編集" : "開催日を追加";
+  $("#dDate").value  = d ? d.date : todayIso();
+  $("#dVenue").value = d ? (d.venue||"") : "カリスマ";
+  $("#dFee").value   = d ? d.fee : (state.settings.defaultFee||2000);
+  $("#dMemo").value  = d ? (d.memo||"") : "";
+  $("#dDelete").hidden = !d;
+  $("#dlgDate").showModal();
+}
+$("#dlgDate").addEventListener("close", ()=>{
+  const rv = $("#dlgDate").returnValue;
+  if(rv === "cancel" || rv === "") return;
+  if(rv === "delete"){
+    const d = state.dates.find(x=>x.id===editingDateId); if(!d) return;
+    if(!confirm(fmtDate(d.date,"long") + " を削除します。\nこの日の出席記録も消えます。よろしいですか？")) return;
+    pushUndo("日削除");
+    state.dates = state.dates.filter(x=>x.id!==editingDateId);
+    Object.keys(state.attendance).forEach(k=>{ if(k.endsWith("|"+editingDateId)) delete state.attendance[k]; });
+    afterChange("開催日を削除しました");
+    return;
+  }
+  const date = $("#dDate").value;
+  if(!date){ toast("日付を入れてください"); return; }
+  pushUndo("日編集");
+  const venue = $("#dVenue").value.trim() || "カリスマ";
+  const fee   = Math.max(0, Number($("#dFee").value) || state.settings.defaultFee || 0);
+  const memo  = $("#dMemo").value.trim();
+  if(editingDateId){
+    const d = state.dates.find(x=>x.id===editingDateId);
+    if(d) Object.assign(d, {date, venue, fee, memo});
+    afterChange("開催日を更新しました");
+  }else{
+    const maxo = state.dates.reduce((a,b)=>Math.max(a,b.order||0),0);
+    state.dates.push({ id:newId("d"), date, venue, fee, memo, order:maxo+1 });
+    afterChange("開催日を追加しました");
+  }
+});
+
+let editingMemberId = null;
+function openMemberDialog(id){
+  editingMemberId = id;
+  const m = id ? state.members.find(x=>x.id===id) : null;
+  $("#dlgMemberTitle").textContent = m ? "メンバーを編集" : "メンバーを追加";
+  $("#mName").value  = m ? m.name : "";
+  $("#mKana").value  = m ? (m.kana||"") : "";
+  $("#mGroup").value = m ? (m.group||"") : "一般";
+  $("#mActive").checked = m ? m.active !== false : true;
+  $("#mDelete").hidden = !m;
+  $("#dlgMember").showModal();
+}
+$("#dlgMember").addEventListener("close", ()=>{
+  const rv = $("#dlgMember").returnValue;
+  if(rv === "cancel" || rv === "") return;
+  if(rv === "delete"){
+    const m = state.members.find(x=>x.id===editingMemberId); if(!m) return;
+    const st = memberStats(m);
+    const msg = st.cnt > 0
+      ? `${m.name} さんを削除します。参加記録 ${st.cnt}回・${yen(st.total)} も一緒に消えます。\n記録を残したい場合は「削除」ではなく、有効のチェックを外して退会扱いにしてください。\n本当に削除しますか？`
+      : `${m.name} さんを削除します。よろしいですか？`;
+    if(!confirm(msg)) return;
+    pushUndo("人削除");
+    state.members = state.members.filter(x=>x.id!==editingMemberId);
+    Object.keys(state.attendance).forEach(k=>{ if(k.startsWith(editingMemberId+"|")) delete state.attendance[k]; });
+    afterChange("メンバーを削除しました");
+    return;
+  }
+  const name = $("#mName").value.trim();
+  if(!name){ toast("氏名を入れてください"); return; }
+  pushUndo("人編集");
+  const kana = $("#mKana").value.trim(), group = $("#mGroup").value.trim(), active = $("#mActive").checked;
+  if(editingMemberId){
+    const m = state.members.find(x=>x.id===editingMemberId);
+    if(m) Object.assign(m, {name, kana, group, active});
+    afterChange("メンバーを更新しました");
+  }else{
+    const maxo = state.members.reduce((a,b)=>Math.max(a,b.order||0),0);
+    state.members.push({ id:newId("m"), name, kana, group, order:maxo+1, active });
+    afterChange("メンバーを追加しました");
+  }
+});
+
+function openBulkDialog(){ $("#bulkText").value=""; $("#dlgBulk").showModal(); }
+$("#dlgBulk").addEventListener("close", ()=>{
+  if($("#dlgBulk").returnValue !== "ok") return;
+  const lines = $("#bulkText").value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  if(!lines.length) return;
+  pushUndo("まとめて追加");
+  let maxo = state.members.reduce((a,b)=>Math.max(a,b.order||0),0);
+  let n=0;
+  lines.forEach(line=>{
+    const p = line.split(/[,、\t]/).map(s=>s.trim());
+    const name = p[0]; if(!name) return;
+    state.members.push({ id:newId("m"), name, kana:p[1]||"", group:p[2]||"一般", order:++maxo, active:true });
+    n++;
+  });
+  afterChange(n + "名を追加しました");
+});
+
+function openSetup(){
+  const c = getConn();
+  $("#suUrl").value = c.url || "";
+  $("#suToken").value = c.token || "";
+  $("#dlgSetup").showModal();
+}
+
+/* ================================================================
+   書き出し
+   ================================================================ */
+function downloadBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1500);
+}
+function stamp(){
+  const d=new Date(), p=n=>String(n).padStart(2,"0");
+  return d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+"_"+p(d.getHours())+p(d.getMinutes());
+}
+
+/* 人×日付のマトリクス（既存Excelと同じ体裁）を配列で作る */
+function buildMatrixAoa(){
+  const ds = sortedDates(), ms = sortedMembers();
+  const head = ["№","氏名","ふりがな","区分","回数","金額"].concat(ds.map(d=>d.date));
+  const rows = [head];
+  ms.forEach((m,i)=>{
+    const s = memberStats(m);
+    const r = [i+1, m.name, m.kana||"", m.group||"", s.cnt, s.total];
+    ds.forEach(d=>{
+      const a = att(m.id,d.id);
+      r.push(a.p ? (a.c ? "○" : "△") : "");
+    });
+    rows.push(r);
+  });
+  const g = grandStats();
+  const foot = ["","合計","","",g.cnt,g.total].concat(ds.map(d=>dateStats(d).cnt));
+  rows.push(foot);
+  rows.push([]);
+  rows.push(["","凡例","○＝参加・集金済　△＝参加・未集金　空欄＝不参加"]);
+  return rows;
+}
+
+function exportExcel(){
+  const ds = sortedDates();
+  const wb = XLSX.utils.book_new();
+
+  // シート1：マトリクス
+  const ws1 = XLSX.utils.aoa_to_sheet(buildMatrixAoa());
+  ws1["!cols"] = [{wch:5},{wch:16},{wch:14},{wch:7},{wch:6},{wch:10}].concat(ds.map(()=>({wch:11})));
+  ws1["!freeze"] = {xSplit:2, ySplit:1};
+  XLSX.utils.book_append_sheet(wb, ws1, "カリスマ");
+
+  // シート2：開催日別
+  const a2 = [["日付","会場","一人負担金","参加人数","集金予定","集金済","未集金","メモ"]];
+  ds.forEach(d=>{ const s=dateStats(d);
+    a2.push([d.date, d.venue||"", s.fee, s.cnt, s.total, s.paid, s.unpaid, d.memo||""]); });
+  const ws2 = XLSX.utils.aoa_to_sheet(a2);
+  ws2["!cols"]=[{wch:12},{wch:14},{wch:11},{wch:9},{wch:11},{wch:11},{wch:11},{wch:20}];
+  XLSX.utils.book_append_sheet(wb, ws2, "開催日別");
+
+  // シート3：個人別
+  const a3 = [["氏名","ふりがな","区分","回数","参加率","負担額","集金済","未集金","状態"]];
+  sortedMembers().forEach(m=>{ const s=memberStats(m);
+    a3.push([m.name, m.kana||"", m.group||"", s.cnt, Math.round(s.rate*100)+"%", s.total, s.paid, s.unpaid, m.active?"有効":"退会"]); });
+  const ws3 = XLSX.utils.aoa_to_sheet(a3);
+  ws3["!cols"]=[{wch:16},{wch:14},{wch:8},{wch:6},{wch:8},{wch:11},{wch:11},{wch:11},{wch:7}];
+  XLSX.utils.book_append_sheet(wb, ws3, "個人別");
+
+  XLSX.writeFile(wb, "カリスマリスト_" + stamp() + ".xlsx");
+  toast("Excelを書き出しました");
+}
+
+function exportCsv(){
+  const rows = buildMatrixAoa();
+  const csv = rows.map(r=>r.map(v=>{
+    const s = String(v==null?"":v);
+    return /[",\r\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+  }).join(",")).join("\r\n");
+  // 先頭のBOMはExcelで文字化けさせないための目印
+  downloadBlob(new Blob(["﻿"+csv], {type:"text/csv;charset=utf-8"}), "カリスマリスト_"+stamp()+".csv");
+  toast("CSVを書き出しました");
+}
+
+function exportJson(){
+  const data = { app:"karisma-attendance", version:1, exportedAt:new Date().toISOString(), data: toWire(state) };
+  downloadBlob(new Blob([JSON.stringify(data,null,2)], {type:"application/json"}), "カリスマ_バックアップ_"+stamp()+".json");
+  toast("バックアップを書き出しました");
+}
+
+/* ================================================================
+   取り込み
+   ================================================================ */
+function importJson(file){
+  const fr = new FileReader();
+  fr.onload = ()=>{
+    try{
+      const j = JSON.parse(fr.result);
+      const w = j.data || j;
+      if(!w || !Array.isArray(w.members)) throw new Error("形式が違います");
+      if(!confirm(`バックアップを読み込みます。\nメンバー${w.members.length}名／開催日${(w.dates||[]).length}件。\n今のデータは置き換わります。よろしいですか？`)) return;
+      pushUndo("JSON取込");
+      state = fromWire(w);
+      afterChange("バックアップを読み込みました");
+    }catch(e){ alert("読み込めませんでした：" + e.message); }
+  };
+  fr.readAsText(file);
+}
+
+/* Excel（既存の 04_カリスマリスト.xlsx を含む）を読み込む */
+function importExcel(file){
+  const fr = new FileReader();
+  fr.onload = ()=>{
+    try{
+      const wb = XLSX.read(new Uint8Array(fr.result), {type:"array", cellDates:true});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const aoa = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null});
+
+      // 「氏名」を含む行を見出し行とみなす
+      let hr = -1;
+      for(let i=0;i<Math.min(aoa.length,15);i++){
+        if((aoa[i]||[]).some(v=>String(v||"").replace(/\s/g,"")==="氏名")){ hr=i; break; }
+      }
+      if(hr < 0) throw new Error("「氏名」の見出しが見つかりません");
+      const head = aoa[hr] || [];
+
+      const nameCol = head.findIndex(v=>String(v||"").replace(/\s/g,"")==="氏名");
+      const kanaCol = head.findIndex(v=>/ふりがな|フリガナ|よみ/.test(String(v||"")));
+      const grpCol  = head.findIndex(v=>/区分/.test(String(v||"")));
+      // 日付として読める列を探す
+      const dateCols = [];
+      head.forEach((v,i)=>{
+        if(i<=nameCol) return;
+        const iso = toIso(v);
+        if(iso) dateCols.push({i, iso});
+      });
+      if(!dateCols.length) throw new Error("日付の列が見つかりません");
+
+      const rows = [];
+      for(let i=hr+1;i<aoa.length;i++){
+        const r = aoa[i] || [];
+        const nm = String(r[nameCol]==null?"":r[nameCol]).trim();
+        if(!nm || nm==="合計" || nm==="計") continue;
+        rows.push({nm, r});
+      }
+      if(!rows.length) throw new Error("メンバーの行が見つかりません");
+
+      if(!confirm(`Excelを読み込みます。\nメンバー${rows.length}名／開催日${dateCols.length}件を検出しました。\n今のデータは置き換わります。よろしいですか？`)) return;
+
+      pushUndo("Excel取込");
+      const ns = emptyState();
+      ns.settings = Object.assign({}, state.settings);
+      const fee = state.settings.defaultFee || 2000;
+      dateCols.forEach((d,i)=> ns.dates.push({id:newId("d"), date:d.iso, venue:"カリスマ", fee, memo:"", order:i+1}));
+      // 同じ氏名が複数ある場合（例：「学生」が11行）は見分けがつくよう連番を振る
+      const nameCount = {};
+      rows.forEach(r=>{ nameCount[r.nm] = (nameCount[r.nm]||0) + 1; });
+      const nameSeq = {};
+      rows.forEach(r=>{
+        if(nameCount[r.nm] > 1){ nameSeq[r.nm] = (nameSeq[r.nm]||0) + 1; r.nm = r.nm + nameSeq[r.nm]; }
+      });
+
+      rows.forEach((row,i)=>{
+        const m = { id:newId("m"), name:row.nm,
+          kana: kanaCol>=0 ? String(row.r[kanaCol]||"").trim() : "",
+          group: grpCol>=0 ? String(row.r[grpCol]||"").trim() : (/^学生/.test(row.nm) ? "学生" : "一般"),
+          order:i+1, active:true };
+        ns.members.push(m);
+        dateCols.forEach((d,j)=>{
+          const v = row.r[d.i];
+          const t = truthyCell(v);
+          if(t) ns.attendance[key(m.id, ns.dates[j].id)] = { p:true, c: t==="paid" };
+        });
+      });
+      state = ns;
+      afterChange("Excelを読み込みました（" + rows.length + "名）");
+    }catch(e){ alert("読み込めませんでした：" + e.message); }
+  };
+  fr.readAsArrayBuffer(file);
+}
+/* セルの値を日付(YYYY-MM-DD)に変換。無理なら null */
+function toIso(v){
+  if(v == null || v === "") return null;
+  if(v instanceof Date && !isNaN(v)){
+    const p = n=>String(n).padStart(2,"0");
+    return v.getFullYear()+"-"+p(v.getMonth()+1)+"-"+p(v.getDate());
+  }
+  const s = String(v).trim();
+  let m = s.match(/^(\d{4})[-\/年.](\d{1,2})[-\/月.](\d{1,2})/);
+  if(m) return m[1]+"-"+String(m[2]).padStart(2,"0")+"-"+String(m[3]).padStart(2,"0");
+  // Excelの内部形式（1900年からの通し番号）
+  if(/^\d+(\.\d+)?$/.test(s)){
+    const n = Number(s);
+    if(n > 20000 && n < 80000){
+      const d = new Date(Date.UTC(1899,11,30) + n*86400000);
+      const p = x=>String(x).padStart(2,"0");
+      return d.getUTCFullYear()+"-"+p(d.getUTCMonth()+1)+"-"+p(d.getUTCDate());
+    }
+  }
+  return null;
+}
+/* 出席セルの中身を判定。"paid"=集金済 / true=参加(未集金) / false=不参加 */
+function truthyCell(v){
+  if(v == null) return false;
+  if(v === true) return true;
+  const s = String(v).trim();
+  if(!s || s==="0" || s==="×" || s==="ｘ" || s==="x" || s==="-" || s==="－") return false;
+  if(s==="○" || s==="◯" || s==="〇" || s==="◎" || s==="済") return "paid";
+  return true;   // ✓ △ 1 など、何か書いてあれば参加とみなす
+}
+
+/* ================================================================ */
+boot();
+</script>
+</body>
+</html>
