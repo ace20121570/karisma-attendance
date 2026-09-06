@@ -28,6 +28,7 @@
   --warn-bg:#fbbf24; --warn-text:#402c00; --warn-line:#d99e00;
   --danger:#c0392b; --danger-weak:#fdecea;
   --head:#eef1f4; --shadow:0 1px 3px rgba(0,0,0,.10), 0 6px 18px rgba(0,0,0,.06);
+  --join-bg:#eefaf1; --unpaid-bg:#fff7e3;
   --radius:12px;
 }
 :root[data-theme="dark"]{
@@ -38,6 +39,7 @@
   --warn-bg:#a16207; --warn-text:#ffe9b3; --warn-line:#ca8a04;
   --danger:#f87171; --danger-weak:#3a1f1d;
   --head:#262a31; --shadow:0 1px 3px rgba(0,0,0,.5), 0 6px 18px rgba(0,0,0,.35);
+  --join-bg:#15251c; --unpaid-bg:#2b2411;
 }
 
 /* 素のWebサイトなので、リセットは自前で持つ。
@@ -238,6 +240,62 @@ ul.sortable li .handle{
 ul.sortable li .nm{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
 ul.sortable li .nm small{display:block;color:var(--muted);font-size:11px}
 
+/* ---- 日ごとの入力画面（名前の横で押す） ---- */
+#daySticky{
+  position:sticky;top:var(--headH,52px);z-index:40;
+  background:var(--panel);border:1px solid var(--line);border-radius:12px;
+  padding:8px 10px;margin:10px 0;box-shadow:var(--shadow)
+}
+#daySticky .dnav{min-width:46px;min-height:46px;padding:0 10px;font-size:16px;flex:none}
+#daySticky select{
+  min-height:46px;padding:6px 8px;border:1px solid var(--line);border-radius:10px;
+  background:var(--panel2);font-size:15px;font-weight:700;width:100%
+}
+#daySticky .dsub{
+  margin-top:6px;font-size:12px;color:var(--muted);line-height:1.5
+}
+#daySticky .dsub b{color:var(--danger)}
+#daySticky .dsub .ok{color:var(--accent);font-weight:700}
+
+ul.entry{list-style:none;margin:0;padding:0}
+ul.entry li{
+  display:flex;align-items:center;gap:8px;padding:6px 4px;
+  border-bottom:1px solid var(--line);min-height:58px
+}
+ul.entry li.joined{background:var(--join-bg)}
+ul.entry li.unpaid{background:var(--unpaid-bg)}
+ul.entry li .no{
+  width:28px;flex:none;text-align:right;color:var(--muted);
+  font-size:12px;font-variant-numeric:tabular-nums
+}
+ul.entry li .nm{
+  flex:1 1 auto;min-width:0;font-size:16px;font-weight:500;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
+ul.entry li .nm small{display:block;font-size:11px;color:var(--muted);font-weight:400}
+ul.entry li .ops{display:flex;gap:6px;flex:none}
+.tgl{
+  min-width:64px;min-height:46px;padding:0 8px;
+  border:1.5px solid var(--line);border-radius:11px;
+  background:var(--panel2);color:var(--muted);
+  font-size:13px;font-weight:700;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;white-space:nowrap
+}
+.tgl:active{transform:translateY(1px)}
+.tgl.on{background:var(--ok-bg);border-color:var(--ok-bg);color:var(--ok-text)}
+.tgl.warn{background:var(--warn-bg);border-color:var(--warn-line);color:var(--warn-text)}
+.tgl.off{opacity:.4}
+body.readonly .tgl{cursor:default}
+
+/* 絞り込みの切り替え（全員／参加／未集金） */
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{
+  border:0;background:var(--panel2);color:var(--muted);
+  min-height:40px;padding:0 12px;font-size:13px;font-weight:600;cursor:pointer
+}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-text)}
+
 /* 特定日ビュー（会計・集金用） */
 .daycheck{list-style:none;margin:0;padding:0}
 .daycheck li{
@@ -380,7 +438,7 @@ body.readonly .daycheck li .box{opacity:.6}
   <div id="roBanner" class="notice" hidden>👀 <b>閲覧専用モードです。</b>記録の変更はできません（見るだけの合言葉で開いています）。</div>
 
   <!-- ========== 一覧（マトリクス） ========== -->
-  <section id="view-matrix">
+  <section id="view-matrix" hidden>
     <div class="card noprint" style="padding:10px 12px">
       <div class="row" style="flex-wrap:nowrap">
         <input class="grow" id="qName" type="search" placeholder="氏名で検索" style="min-height:40px;padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)">
@@ -415,13 +473,15 @@ body.readonly .daycheck li .box{opacity:.6}
     </p>
   </section>
 
-  <!-- ========== 日別（特定日ビュー） ========== -->
-  <section id="view-day" hidden>
-    <div class="card">
-      <div class="field" style="margin:0">
-        <label>開催日を選ぶ</label>
-        <select id="daySelect"></select>
+  <!-- ========== 入力（日を選んで、名前の横で押す） ========== -->
+  <section id="view-day">
+    <div id="daySticky">
+      <div class="row" style="flex-wrap:nowrap;width:100%">
+        <button class="btn dnav" id="dayPrev" title="前の開催日" aria-label="前の開催日">◀</button>
+        <select id="daySelect" class="grow" aria-label="開催日を選ぶ"></select>
+        <button class="btn dnav" id="dayNext" title="次の開催日" aria-label="次の開催日">▶</button>
       </div>
+      <div class="dsub" id="daySub"></div>
     </div>
     <div id="dayPane"></div>
   </section>
@@ -527,8 +587,8 @@ body.readonly .daycheck li .box{opacity:.6}
 </main>
 
 <nav class="tabs noprint" role="tablist">
-  <button role="tab" data-view="matrix" aria-selected="true"><span class="ic">▦</span>一覧</button>
-  <button role="tab" data-view="day" aria-selected="false"><span class="ic">📋</span>日別</button>
+  <button role="tab" data-view="day" aria-selected="true"><span class="ic">✏️</span>入力</button>
+  <button role="tab" data-view="matrix" aria-selected="false"><span class="ic">▦</span>一覧</button>
   <button role="tab" data-view="stats" aria-selected="false"><span class="ic">📊</span>集計</button>
   <button role="tab" data-view="admin" aria-selected="false"><span class="ic">⚙︎</span>管理</button>
 </nav>
@@ -618,7 +678,10 @@ let undoSnap = null;       // 1手だけの取り消し用
 let saveTimer = null;      // まとめて保存するためのタイマー
 let saving = false, pendingSave = false;
 let dateAsc = true;        // 日付の並び順
-let currentView = "matrix";
+let dayQuery  = "";        // 入力画面の氏名検索
+let dayFilter = "all";     // 入力画面の絞り込み all / joined / unpaid
+let dayQTimer = null;
+let currentView = "day";
 let viewsStale = false;   // 他タブの表示が古くなっているか
 let readOnly   = false;   // 閲覧専用の合言葉で開いているか
 let serverRev  = null;    // サーバー側の更新回数（読んだ時点のもの）
@@ -780,6 +843,18 @@ function markDirty(){
   render();
   scheduleSave();
 }
+/* 出席や集金を1つ切り替えたあとの反映。いま見ている画面に応じて最小限だけ描き直す */
+function afterToggle(mid, did){
+  if(currentView === "day"){
+    saveCache();
+    if(patchDayRow(mid, did)){ renderDaySummary(); viewsStale = true; }
+    else renderDay();
+    scheduleSave();
+    return;
+  }
+  markDirtyCell(mid, did);
+}
+
 /* セル1つだけの変更。表を丸ごと描き直すとスクロール位置が戻ってしまうので、
    触ったセルとその行・合計だけを書き換える */
 function markDirtyCell(mid, did){
@@ -1131,6 +1206,11 @@ function renderGrand(){
 }
 
 /* 表の高さを画面の残りに合わせる。下のタブバーに合計行が隠れるのを防ぐ */
+function fitHeader(){
+  const hd = $("header.app");
+  if(hd) document.documentElement.style.setProperty("--headH", hd.offsetHeight + "px");
+}
+
 function fitTable(){
   const wrap = $("#view-matrix .tablewrap");
   if(!wrap || $("#view-matrix").hidden) return;
@@ -1189,58 +1269,112 @@ function renderMatrix(){
   fitTable();
 }
 
-function renderDay(){
+function currentDayId(){
   const sel = $("#daySelect"), ds = sortedDates();
   const cur = sel.value;
   sel.innerHTML = ds.map(d=>`<option value="${esc(d.id)}">${esc(fmtDate(d.date,"long"))}　${esc(d.venue||"")}</option>`).join("");
-  if(cur && ds.some(d=>d.id===cur)) sel.value = cur;
-  else{
-    // 既定は「今日以降で最も近い日」。なければ最後の日
-    const t = todayIso();
-    const near = ds.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))).find(d=>d.date>=t);
-    if(near) sel.value = near.id; else if(ds.length) sel.value = ds[ds.length-1].id;
-  }
-  const d = state.dates.find(x=>x.id===sel.value);
+  if(cur && ds.some(d=>d.id===cur)){ sel.value = cur; return cur; }
+  // 既定は「今日以降で最も近い日」。なければ最後の日
+  const t = todayIso();
+  const near = ds.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))).find(d=>d.date>=t);
+  const pick = near ? near.id : (ds.length ? ds[ds.length-1].id : "");
+  sel.value = pick;
+  return pick;
+}
+
+/* 入力画面。日を選び、名簿を縦に並べて、名前の横のボタンで入力する */
+function renderDay(){
+  const did = currentDayId();
+  const d = state.dates.find(x=>x.id===did);
   const pane = $("#dayPane");
-  if(!d){ pane.innerHTML = `<div class="card muted">開催日がありません。「管理」タブで追加してください。</div>`; return; }
+  if(!d){
+    pane.innerHTML = `<div class="card muted">開催日がありません。「管理」タブで追加してください。</div>`;
+    return;
+  }
 
-  const s = dateStats(d);
-  const joined = sortedMembers().filter(m=>att(m.id,d.id).p);
-  const notJoined = sortedMembers().filter(m=>m.active && !att(m.id,d.id).p);
+  const ms = sortedMembers().filter(m=>{
+    const a = att(m.id, d.id);
+    if(!m.active && !a.p) return false;                  // 退会者は、参加記録がある時だけ出す
+    if(dayQuery && !(m.name.toLowerCase().includes(dayQuery) ||
+                     (m.kana||"").toLowerCase().includes(dayQuery))) return false;
+    if(dayFilter === "joined" && !a.p) return false;
+    if(dayFilter === "unpaid" && !(a.p && !a.c)) return false;
+    return true;
+  });
 
-  let h = `<div class="grandtotal">
-    <div class="gt"><div class="k">参加人数</div><div class="v">${s.cnt} <span style="font-size:12px;font-weight:400">名</span></div></div>
-    <div class="gt"><div class="k">一人</div><div class="v">${yen(s.fee)}</div></div>
-    <div class="gt"><div class="k">集金予定</div><div class="v">${yen(s.total)}</div></div>
-    <div class="gt ${s.unpaid>0?"warn":""}"><div class="k">未集金（${s.cnt-s.paidCnt}名）</div><div class="v">${yen(s.unpaid)}</div></div>
+  let h = `<div class="card" style="padding:10px 12px">
+    <div class="row" style="flex-wrap:nowrap">
+      <input class="grow" id="dayQ" type="search" placeholder="氏名で探す" value="${esc(dayQuery)}"
+        style="min-height:44px;padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)">
+    </div>
+    <div class="row" style="margin-top:8px">
+      <div class="seg">
+        <button data-f="all"    aria-pressed="${dayFilter==="all"}">全員</button>
+        <button data-f="joined" aria-pressed="${dayFilter==="joined"}">参加</button>
+        <button data-f="unpaid" aria-pressed="${dayFilter==="unpaid"}">未集金</button>
+      </div>
+      <span class="small muted" id="dayCount"></span>
+    </div>
   </div>`;
 
-  h += `<div class="card"><h2>集金チェックリスト　<span class="pill">${s.paidCnt} / ${s.cnt} 名</span></h2>`;
-  if(d.memo) h += `<p class="small muted" style="margin-top:0">メモ：${esc(d.memo)}</p>`;
-  if(joined.length===0){
-    h += `<p class="muted">まだ参加者がいません。下の「参加者を追加」から選んでください。</p>`;
+  h += `<div class="card" style="padding:6px 10px">`;
+  if(d.memo) h += `<p class="small muted" style="margin:6px 2px">メモ：${esc(d.memo)}</p>`;
+  if(ms.length === 0){
+    h += `<p class="muted" style="padding:16px 6px">該当する人がいません。</p>`;
   }else{
-    h += `<ul class="daycheck" id="dayList">` + joined.map(m=>{
-      const a = att(m.id,d.id);
-      return `<li class="${a.c?"paid":""}" data-m="${esc(m.id)}" data-d="${esc(d.id)}">
-        <span class="box">${a.c?"✓":""}</span>
-        <span class="nm">${esc(m.name)}</span>
-        <span class="amt">${yen(d.fee)}</span></li>`;
-    }).join("") + `</ul>
-    <div class="row editonly" style="margin-top:10px">
-      <button class="btn sm" data-allpaid="1">全員を集金済にする</button>
-      <button class="btn sm" data-allunpaid="1">全員を未集金に戻す</button>
-    </div>`;
+    h += `<ul class="entry" id="entryList">` + ms.map((m,i)=>{
+      const a = att(m.id, d.id);
+      return `<li class="${a.p?(a.c?"joined":"unpaid"):""}" data-m="${esc(m.id)}">
+        <span class="no">${i+1}</span>
+        <span class="nm">${esc(m.name)}${m.active?"":' <span class="pill gray">退会</span>'}
+          ${(m.group && m.group !== "一般")?`<small>${esc(m.group)}</small>`:""}</span>
+        <span class="ops">
+          <button type="button" class="tgl${a.p?" on":""}" data-op="p">${a.p?"✓ ":""}参加</button>
+          <button type="button" class="tgl${a.c?" on":(a.p?" warn":" off")}" data-op="c">${a.c?"✓ ":""}集金</button>
+        </span></li>`;
+    }).join("") + `</ul>`;
   }
   h += `</div>`;
 
-  h += `<div class="card editonly"><h2>参加者を追加（不参加の人）</h2>
-    <p class="small muted" style="margin-top:0">名前を押すとこの日の参加になります。</p>
-    <div class="row" id="addJoin">` +
-    (notJoined.length ? notJoined.map(m=>`<button class="btn sm" data-add="${esc(m.id)}" data-d="${esc(d.id)}">＋ ${esc(m.name)}</button>`).join("")
-      : `<span class="muted small">全員が参加済みです。</span>`) +
-    `</div></div><div style="height:20px"></div>`;
+  h += `<div class="card editonly" style="padding:10px 12px">
+    <div class="row">
+      <button class="btn sm" data-allpaid="1">参加者を全員「集金済」にする</button>
+      <button class="btn sm" data-allunpaid="1">全員「未集金」に戻す</button>
+    </div></div>
+    <div style="height:24px"></div>`;
+
   pane.innerHTML = h;
+  renderDaySummary();
+}
+
+/* 上部に貼り付く見出し（日付・会場・その日の集計） */
+function renderDaySummary(){
+  const d = state.dates.find(x=>x.id === $("#daySelect").value);
+  const sub = $("#daySub");
+  if(!d || !sub) return;
+  const s = dateStats(d);
+  sub.innerHTML =
+    `参加 <b style="color:var(--text)">${s.cnt}名</b>　一人 ${yen(s.fee)}　予定 ${yen(s.total)}　` +
+    (s.cnt === 0 ? `` :
+      (s.unpaid > 0 ? `未集金 <b>${yen(s.unpaid)}</b> / ${s.cnt - s.paidCnt}名`
+                    : `<span class="ok">集金ぜんぶ完了</span>`));
+  const cnt = $("#dayCount");
+  if(cnt) cnt.textContent = document.querySelectorAll("#entryList li").length + "名を表示中";
+  const ds = sortedDates(), i = ds.findIndex(x=>x.id===d.id);
+  if($("#dayPrev")) $("#dayPrev").disabled = (i <= 0);
+  if($("#dayNext")) $("#dayNext").disabled = (i < 0 || i >= ds.length-1);
+}
+
+/* 1行だけ塗り替える（全部描き直すとスクロール位置が動くため） */
+function patchDayRow(mid, did){
+  const li = $(`#entryList li[data-m="${mid}"]`);
+  if(!li) return false;
+  const a = att(mid, did);
+  li.className = a.p ? (a.c ? "joined" : "unpaid") : "";
+  const pb = li.querySelector('[data-op="p"]'), cb = li.querySelector('[data-op="c"]');
+  if(pb){ pb.className = "tgl" + (a.p?" on":""); pb.textContent = (a.p?"✓ ":"") + "参加"; }
+  if(cb){ cb.className = "tgl" + (a.c?" on":(a.p?" warn":" off")); cb.textContent = (a.c?"✓ ":"") + "集金"; }
+  return true;
 }
 
 function renderStats(){
@@ -1366,16 +1500,15 @@ function togglePresent(mid,did){
   a.p = !a.p;
   if(!a.p) a.c = false;           // 不参加にしたら集金済も外す
   state.attendance[k] = a;
-  markDirtyCell(mid, did);
+  afterToggle(mid, did);
 }
 function toggleCollected(mid,did){
   if(!canEdit()) return;
   const k = key(mid,did), a = state.attendance[k] || {p:false,c:false};
-  if(!a.p){ toast("先に「参加」にしてください"); return; }
+  if(!a.p){ toast("先に「参加」を押してください"); return; }
   pushUndo("集金");
   a.c = !a.c; state.attendance[k] = a;
-  if(currentView === "day"){ saveCache(); renderDay(); viewsStale = true; scheduleSave(); }
-  else markDirtyCell(mid, did);
+  afterToggle(mid, did);
   if(navigator.vibrate) navigator.vibrate(12);
 }
 
@@ -1458,24 +1591,59 @@ function bindUI(){
     toggleCollected(cell.dataset.m, cell.dataset.d);
   });
 
-  /* --- 日別ビュー --- */
-  $("#daySelect").addEventListener("change", renderDay);
-  $("#dayPane").addEventListener("click", e=>{
-    if(e.target.closest("#dayList li, [data-add], [data-allpaid], [data-allunpaid]") && !canEdit()) return;
-    const li = e.target.closest("#dayList li");
-    if(li){ toggleCollected(li.dataset.m, li.dataset.d); return; }
-    const add = e.target.closest("[data-add]");
-    if(add){ togglePresent(add.dataset.add, add.dataset.d); return; }
+  /* --- 入力画面（日を選んで、名前の横で押す） --- */
+  $("#daySelect").addEventListener("change", ()=>{ renderDay(); window.scrollTo(0,0); });
+
+  $("#view-day").addEventListener("click", e=>{
+    // 日の前後移動
+    const nav = e.target.closest("#dayPrev, #dayNext");
+    if(nav){
+      const ds = sortedDates(), i = ds.findIndex(x=>x.id === $("#daySelect").value);
+      const j = i + (nav.id === "dayNext" ? 1 : -1);
+      if(j >= 0 && j < ds.length){ $("#daySelect").value = ds[j].id; renderDay(); window.scrollTo(0,0); }
+      return;
+    }
+    // 絞り込みの切り替え
+    const seg = e.target.closest(".seg [data-f]");
+    if(seg){ dayFilter = seg.dataset.f; renderDay(); return; }
+    // 参加・集金のボタン
+    const op = e.target.closest("[data-op]");
+    if(op){
+      if(!canEdit()) return;
+      const li = op.closest("li[data-m]"); if(!li) return;
+      const did = $("#daySelect").value;
+      if(op.dataset.op === "p") togglePresent(li.dataset.m, did);
+      else                      toggleCollected(li.dataset.m, did);
+      return;
+    }
+    // 一括操作
     const allp = e.target.closest("[data-allpaid]"), allu = e.target.closest("[data-allunpaid]");
     if(allp || allu){
+      if(!canEdit()) return;
       const did = $("#daySelect").value;
+      const d = state.dates.find(x=>x.id===did); if(!d) return;
+      const s2 = dateStats(d);
+      if(s2.cnt === 0){ toast("この日はまだ参加者がいません"); return; }
+      if(allu && !confirm("この日の集金済をすべて取り消します。よろしいですか？")) return;
       pushUndo("一括集金");
       state.members.forEach(m=>{
         const k = key(m.id,did), a = state.attendance[k];
         if(a && a.p) a.c = !!allp;
       });
-      afterChange(allp ? "全員を集金済にしました" : "全員を未集金に戻しました");
+      afterChange(allp ? "参加者を全員「集金済」にしました" : "全員「未集金」に戻しました");
     }
+  });
+
+  // 氏名検索（打つたびに絞る。入力欄は消えないよう、その場で作り直さない）
+  $("#view-day").addEventListener("input", e=>{
+    if(e.target.id !== "dayQ") return;
+    dayQuery = e.target.value.trim().toLowerCase();
+    clearTimeout(dayQTimer);
+    dayQTimer = setTimeout(()=>{
+      renderDay();
+      const q = $("#dayQ");
+      if(q){ q.focus(); try{ q.setSelectionRange(q.value.length, q.value.length); }catch(e2){} }
+    }, 220);
   });
 
   /* --- 管理：開催日 --- */
@@ -1512,8 +1680,9 @@ function bindUI(){
     if(!connReady() || hasUnsaved()) return;    // 未保存があるときは触らない
     reload();
   });
-  window.addEventListener("resize", fitTable);
-  window.addEventListener("orientationchange", ()=> setTimeout(fitTable, 250));
+  fitHeader();
+  window.addEventListener("resize", ()=>{ fitHeader(); fitTable(); });
+  window.addEventListener("orientationchange", ()=> setTimeout(()=>{ fitHeader(); fitTable(); }, 250));
   updateUndoBtn();
 
   /* --- データ入出力 --- */
