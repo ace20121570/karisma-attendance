@@ -146,9 +146,18 @@ table.matrix th,table.matrix td{
   border-right:1px solid var(--line);border-bottom:1px solid var(--line);
   padding:0;margin:0;background:var(--panel)
 }
-/* 先頭列（氏名）を固定 */
-table.matrix .colname{
+/* 先頭の № 列を固定 */
+table.matrix .colno{
   position:sticky;left:0;z-index:2;
+  width:34px;min-width:34px;max-width:34px;
+  padding:6px 2px;text-align:center;
+  font-size:11px;color:var(--muted);font-weight:500;
+  background:var(--panel2);font-variant-numeric:tabular-nums
+}
+table.matrix thead th.colno,table.matrix tfoot .colno{background:var(--head);z-index:4}
+/* 氏名列を № のとなりに固定 */
+table.matrix .colname{
+  position:sticky;left:34px;z-index:2;
   min-width:116px;max-width:150px;
   padding:6px 8px;text-align:left;font-weight:500;
   background:var(--panel);
@@ -191,7 +200,7 @@ table.matrix tfoot th,table.matrix tfoot td{
   position:sticky;bottom:0;z-index:3;background:var(--head);
   padding:4px 6px;font-size:11.5px;font-weight:700
 }
-table.matrix tfoot th.colname{z-index:4;left:0}
+table.matrix tfoot th.colname{z-index:4;left:34px}
 table.matrix tfoot .sub{display:block;font-weight:400;font-size:10px;color:var(--muted)}
 
 .grandtotal{
@@ -286,7 +295,7 @@ dialog .dlg-foot{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;ma
   .tablewrap{max-height:none;overflow:visible;border:0;box-shadow:none}
   table.matrix{font-size:8pt;width:100%}
   table.matrix th,table.matrix td{border:.4pt solid #999 !important}
-  table.matrix .colname,table.matrix thead th,table.matrix tfoot th,table.matrix tfoot td{
+  table.matrix .colno,table.matrix .colname,table.matrix thead th,table.matrix tfoot th,table.matrix tfoot td{
     position:static !important;box-shadow:none !important
   }
   td.cell{height:auto}
@@ -299,6 +308,52 @@ dialog .dlg-foot{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;ma
   #printTitle{display:block !important;font-size:13pt;font-weight:700;margin:0 0 3mm}
 }
 #printTitle{display:none}
+
+/* ---- スマホ（狭い画面）での入力のしやすさ ---- */
+@media (max-width:640px){
+  /* iOSは文字が16px未満の入力欄に触れるとページを勝手に拡大する。それを止める */
+  input,select,textarea{font-size:16px}
+  .field input,.field select,.field textarea{min-height:48px}
+  .field textarea{min-height:180px}
+
+  /* ダイアログを画面下から せり上がる形にして、作業スペースを広く取る */
+  dialog{
+    width:100vw;max-width:100vw;
+    margin:0;left:0;right:0;top:auto;bottom:0;
+    border-radius:18px 18px 0 0;
+    max-height:92dvh
+  }
+  dialog .dlg-body{
+    max-height:92dvh;overflow-y:auto;-webkit-overflow-scrolling:touch;
+    padding:12px 14px calc(10px + env(safe-area-inset-bottom))
+  }
+  /* 見出しは上に、ボタンは下に貼り付けて、間だけスクロールさせる */
+  dialog h2{
+    position:sticky;top:0;z-index:2;background:var(--panel);
+    margin:0 0 10px;padding:6px 0 8px;border-bottom:1px solid var(--line)
+  }
+  dialog .dlg-foot{
+    position:sticky;bottom:0;z-index:2;background:var(--panel);
+    margin-top:12px;padding:10px 0 2px;border-top:1px solid var(--line)
+  }
+  dialog .dlg-foot .btn{flex:1 1 auto;min-height:48px}
+  dialog .dlg-foot .btn.danger{flex:0 0 auto}
+
+  /* 合計の4枚は横1列に詰めて、表に高さを譲る */
+  .grandtotal{grid-template-columns:repeat(4,1fr);gap:5px}
+  .gt{padding:6px 5px}
+  .gt .k{font-size:9.5px;line-height:1.3}
+  .gt .v{font-size:14px}
+  .gt .v span{display:none}
+  /* 「戻す」はアイコンだけにして横幅を稼ぐ */
+  #btnUndo .lbl{display:none}
+
+  /* 表は氏名の幅を少し詰めて、日付を1列でも多く見せる */
+  table.matrix .colname{min-width:98px;max-width:120px}
+  table.matrix .colno{width:30px;min-width:30px;max-width:30px}
+  table.matrix .colname{left:30px}
+  table.matrix tfoot th.colname{left:30px}
+}
 
 @media (min-width:820px){
   body{font-size:15px}
@@ -321,18 +376,23 @@ dialog .dlg-foot{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;ma
   <!-- ========== 一覧（マトリクス） ========== -->
   <section id="view-matrix">
     <div class="card noprint" style="padding:10px 12px">
-      <div class="row">
+      <div class="row" style="flex-wrap:nowrap">
         <input class="grow" id="qName" type="search" placeholder="氏名で検索" style="min-height:40px;padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)">
-        <button class="btn sm" id="btnUndo" title="直前の操作を取り消す" disabled>↩︎ 戻す</button>
-        <button class="btn sm" id="btnDateOrder" title="日付の並び順">日付 ↑</button>
-        <button class="btn sm" id="btnPrint">印刷</button>
+        <button class="btn sm" id="btnUndo" title="直前の操作を取り消す" disabled>↩︎<span class="lbl"> 戻す</span></button>
+        <button class="btn sm" id="btnFilter" aria-expanded="false">絞り込み ▾</button>
       </div>
-      <div class="row" style="margin-top:8px">
-        <label class="row small" style="gap:5px"><input type="checkbox" id="fUnpaid" style="width:18px;height:18px"> 未集金の人だけ</label>
-        <label class="row small" style="gap:5px"><input type="checkbox" id="fInactive" style="width:18px;height:18px"> 退会者も表示</label>
-        <select id="fDate" class="small" style="min-height:34px;padding:2px 8px;border:1px solid var(--line);border-radius:8px;background:var(--panel2)">
-          <option value="">日で絞らない</option>
-        </select>
+      <div id="filterPanel" hidden>
+        <div class="row" style="margin-top:10px">
+          <label class="row small" style="gap:5px"><input type="checkbox" id="fUnpaid" style="width:20px;height:20px"> 未集金の人だけ</label>
+          <label class="row small" style="gap:5px"><input type="checkbox" id="fInactive" style="width:20px;height:20px"> 退会者も表示</label>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <select id="fDate" class="grow small" style="min-height:40px;padding:2px 8px;border:1px solid var(--line);border-radius:8px;background:var(--panel2)">
+            <option value="">日で絞らない</option>
+          </select>
+          <button class="btn sm" id="btnDateOrder" title="日付の並び順">日付 ↑</button>
+          <button class="btn sm" id="btnPrint">印刷</button>
+        </div>
       </div>
     </div>
 
@@ -418,16 +478,18 @@ dialog .dlg-foot{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;ma
       <h2>接続先（クラウド保存）</h2>
       <div class="field">
         <label>Apps Script ウェブアプリのURL</label>
-        <input id="setUrl" type="url" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
+        <input id="setUrl" type="url" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
       </div>
       <div class="field">
         <label>合言葉（トークン）</label>
-        <input id="setToken" type="text" autocomplete="off">
+        <input id="setToken" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
       </div>
       <div class="row">
         <button class="btn primary" id="btnSaveConn">接続先を保存して読み込み直す</button>
+        <button class="btn" id="btnTestConn">接続をテストする</button>
         <button class="btn" id="btnReload">最新を取得</button>
       </div>
+      <div id="connResult" class="notice" hidden></div>
       <p class="small muted">この2つはこの端末の中だけに記憶されます。iPhoneとMacで1回ずつ入力してください。</p>
     </div>
 
@@ -493,8 +555,8 @@ dialog .dlg-foot{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;ma
   <p class="small">クラウド（Googleスプレッドシート）に保存するため、次の2つを入力してください。
   セットアップ手順書の最後に書いてあるものです。<br>
   <b>あとで入力する場合は「あとで」を押してください。</b>この端末の中だけで動きます（他の端末とは同期しません）。</p>
-  <div class="field"><label>Apps Script ウェブアプリのURL</label><input type="url" id="suUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off"></div>
-  <div class="field"><label>合言葉（トークン）</label><input type="text" id="suToken" autocomplete="off"></div>
+  <div class="field"><label>Apps Script ウェブアプリのURL</label><input type="url" id="suUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+  <div class="field"><label>合言葉（トークン）</label><input type="text" id="suToken" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
   <div class="dlg-foot">
     <button class="btn" value="later">あとで</button>
     <button class="btn primary" value="ok">保存する</button>
@@ -616,9 +678,9 @@ async function api(action, payload){
     return unwrap(txt);
   }catch(err){
     // POSTが通らない環境向けの保険。取得(load)だけGET方式で再挑戦する
-    if(action === "load"){
+    if(action === "load" || action === "ping"){
       const u = new URL(c.url);
-      u.searchParams.set("action","load");
+      u.searchParams.set("action", action);
       u.searchParams.set("token",c.token);
       const res2 = await fetch(u.toString(), { method:"GET", mode:"cors", redirect:"follow" });
       return unwrap(await res2.text());
@@ -911,12 +973,22 @@ function render(){
   renderAdmin();
 }
 
+/* 絞り込みボタンの見た目。条件が効いている時は色を変えて気づけるようにする */
+function updateFilterBtn(){
+  const b = $("#btnFilter"); if(!b) return;
+  const n = ($("#fUnpaid").checked?1:0) + ($("#fInactive").checked?1:0) + ($("#fDate").value?1:0);
+  const open = !$("#filterPanel").hidden;
+  b.textContent = (n ? "絞り込み " + n : "絞り込み") + (open ? " ▴" : " ▾");
+  b.classList.toggle("primary", n > 0);
+}
+
 function renderFilters(){
   const sel = $("#fDate"), cur = sel.value;
   sel.innerHTML = '<option value="">日で絞らない</option>' +
     sortedDates().map(d=>`<option value="${esc(d.id)}">${esc(fmtDate(d.date))} ${esc(d.venue||"")}</option>`).join("");
   if(cur && state.dates.some(d=>d.id===cur)) sel.value = cur;
   $("#btnDateOrder").textContent = dateAsc ? "日付 ↑" : "日付 ↓";
+  updateFilterBtn();
   // 会場・区分の入力候補
   $("#venues").innerHTML = Array.from(new Set(state.dates.map(d=>d.venue).filter(Boolean).concat(["カリスマ"])))
     .map(v=>`<option value="${esc(v)}">`).join("");
@@ -956,16 +1028,17 @@ function renderMatrix(){
     return;
   }
   let h = "<thead><tr>";
-  h += `<th class="colname">氏名</th>`;
+  h += `<th class="colno">№</th><th class="colname">氏名</th>`;
   ds.forEach(d=>{
     const w = dow(d.date), cls = w===0?"sun":(w===6?"sat":"");
     h += `<th><span class="${cls}">${esc(fmtDate(d.date))}</span><span class="v">${esc(d.venue||"")}</span></th>`;
   });
   h += `<th class="sum">回数</th><th class="sum">負担額</th><th class="sum">未集金</th></tr></thead><tbody>`;
 
-  ms.forEach(m=>{
+  ms.forEach((m,mi)=>{
     const st = memberStats(m);
     h += `<tr class="${m.active?"":"inactive"}">`;
+    h += `<td class="colno">${mi+1}</td>`;
     h += `<th class="colname" scope="row"><span class="nm">${esc(m.name)}</span>` +
          (m.kana?`<span class="kana">${esc(m.kana)}</span>`:"") + `</th>`;
     ds.forEach(d=>{
@@ -979,7 +1052,7 @@ function renderMatrix(){
   });
 
   h += "</tbody><tfoot><tr>";
-  h += `<th class="colname">合計 <span class="sub">${ms.length}名表示</span></th>`;
+  h += `<th class="colno"></th><th class="colname">合計 <span class="sub">${ms.length}名表示</span></th>`;
   ds.forEach(d=>{
     const s = dateStats(d);
     h += `<td style="text-align:center">${s.cnt}名<span class="sub">${s.unpaid>0?"未"+yen(s.unpaid):yen(s.total)}</span></td>`;
@@ -1204,10 +1277,17 @@ function bindUI(){
 
   // 絞り込み
   ["#qName","#fUnpaid","#fInactive","#fDate"].forEach(s=>{
-    $(s).addEventListener("input", ()=>{ renderGrand(); renderMatrix(); });
-    $(s).addEventListener("change", ()=>{ renderGrand(); renderMatrix(); });
+    $(s).addEventListener("input", ()=>{ updateFilterBtn(); renderGrand(); renderMatrix(); });
+    $(s).addEventListener("change", ()=>{ updateFilterBtn(); renderGrand(); renderMatrix(); });
   });
   $("#btnUndo").addEventListener("click", doUndo);
+  $("#btnFilter").addEventListener("click", ()=>{
+    const p = $("#filterPanel"), open = p.hidden;
+    p.hidden = !open;
+    $("#btnFilter").setAttribute("aria-expanded", String(open));
+    updateFilterBtn();
+    fitTable();
+  });
   document.addEventListener("keydown", e=>{
     if((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z" && !e.shiftKey){
       const t = e.target.tagName;
@@ -1320,6 +1400,7 @@ function bindUI(){
     if(!connReady()){ toast("URLと合言葉の両方を入力してください"); return; }
     await reload();
   });
+  $("#btnTestConn").addEventListener("click", testConn);
   $("#btnReload").addEventListener("click", ()=> reload());
 
   /* --- 危険な操作 --- */
@@ -1347,6 +1428,49 @@ function bindUI(){
       toast("この端末だけで使います。管理タブでいつでもクラウド設定できます", null, null, 5000);
     }
   });
+}
+
+/* ---- 接続テスト。どこが悪いのかを日本語で示す ---- */
+async function testConn(){
+  const box = $("#connResult");
+  const url = $("#setUrl").value.trim(), token = $("#setToken").value.trim();
+  setConn(url, token);
+  box.hidden = false; box.className = "notice";
+
+  if(!url || !token){ box.className = "notice warn"; box.innerHTML = "URLと合言葉の<b>両方</b>を入れてください。"; return; }
+
+  // 入力そのものの点検（全角混じりは見た目で気づけないので先に知らせる）
+  const warn = [];
+  if(!/\/exec\s*$/.test(url)) warn.push("URLの末尾が <b>/exec</b> になっていません（<b>/dev</b> のURLは使えません）。");
+  if(/[^\x20-\x7E]/.test(token)) warn.push("合言葉に<b>全角文字</b>が混じっています。半角の英数字とハイフンだけにしてください。");
+  if(/\s/.test(token)) warn.push("合言葉に<b>空白</b>が入っています。");
+
+  box.innerHTML = "確認中…";
+  try{
+    await api("ping");
+    box.className = "notice";
+    box.innerHTML = "✅ <b>つながりました。</b>合言葉も一致しています。" +
+      (warn.length ? "<br>（気になる点：" + warn.join(" ") + "）" : "") +
+      "<br>「接続先を保存して読み込み直す」を押してください。";
+  }catch(err){
+    box.className = "notice warn";
+    const msg = String(err && err.message || err);
+    if(/合言葉/.test(msg)){
+      box.innerHTML = "❌ <b>Googleまでは届いていますが、合言葉が一致しません。</b>" +
+        "<br>Apps Script の <b>20行目あたり</b>の <code>var TOKEN = '……';</code> に書かれている文字を、" +
+        "そのままここへ貼り付けてください。" +
+        "<br><b>Code.gs を書き換えた場合は、「デプロイ」→「デプロイを管理」→鉛筆マーク→" +
+        "バージョンを「新バージョン」→「デプロイ」まで行わないと反映されません。</b>" +
+        (warn.length ? "<br>また、" + warn.join(" ") : "") +
+        "<br><span class=\"small muted\">いま入力されている合言葉：" + token.length + "文字" +
+        "（先頭「" + esc(token.slice(0,1)) + "」／末尾「" + esc(token.slice(-1)) + "」）</span>";
+    }else{
+      box.innerHTML = "❌ <b>Googleまで届いていません。</b>" + esc(msg) +
+        "<br>デプロイの設定で <b>「アクセスできるユーザー＝全員」</b> になっているか、" +
+        "URLの末尾が <b>/exec</b> かをご確認ください。" +
+        (warn.length ? "<br>" + warn.join(" ") : "");
+    }
+  }
 }
 
 /* ---- 名簿のドラッグ並べ替え（指・マウス両対応） ---- */
