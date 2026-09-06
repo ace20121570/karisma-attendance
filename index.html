@@ -279,6 +279,11 @@ dialog .dlg-foot{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;ma
   background:var(--accent-weak);border:1px solid var(--accent);color:var(--text);
   border-radius:10px;padding:10px 12px;font-size:13px;margin:10px 0
 }
+body.readonly .editonly{display:none !important}
+body.readonly td.cell,body.readonly .daycheck li{cursor:default}
+body.readonly .daycheck li .box{opacity:.6}
+#roBanner{background:#fff7ed;border:1px solid #f59e0b;color:#7c2d12}
+:root[data-theme="dark"] #roBanner{background:#3a2a10;border-color:#a16207;color:#fde68a}
 .notice.warn{background:var(--danger-weak);border-color:var(--danger)}
 
 /* ============================================================
@@ -372,13 +377,14 @@ dialog .dlg-foot{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;ma
 
 <main>
   <div id="printTitle"></div>
+  <div id="roBanner" class="notice" hidden>👀 <b>閲覧専用モードです。</b>記録の変更はできません（見るだけの合言葉で開いています）。</div>
 
   <!-- ========== 一覧（マトリクス） ========== -->
   <section id="view-matrix">
     <div class="card noprint" style="padding:10px 12px">
       <div class="row" style="flex-wrap:nowrap">
         <input class="grow" id="qName" type="search" placeholder="氏名で検索" style="min-height:40px;padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)">
-        <button class="btn sm" id="btnUndo" title="直前の操作を取り消す" disabled>↩︎<span class="lbl"> 戻す</span></button>
+        <button class="btn sm editonly" id="btnUndo" title="直前の操作を取り消す" disabled>↩︎<span class="lbl"> 戻す</span></button>
         <button class="btn sm" id="btnFilter" aria-expanded="false">絞り込み ▾</button>
       </div>
       <div id="filterPanel" hidden>
@@ -427,13 +433,13 @@ dialog .dlg-foot{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;ma
 
   <!-- ========== 管理 ========== -->
   <section id="view-admin" hidden>
-    <div class="card">
+    <div class="card editonly">
       <h2>開催日の管理</h2>
       <div class="row"><button class="btn primary" id="btnAddDate">＋ 開催日を追加</button></div>
       <div id="dateList" style="margin-top:10px"></div>
     </div>
 
-    <div class="card">
+    <div class="card editonly">
       <h2>メンバーの管理</h2>
       <div class="row">
         <button class="btn primary" id="btnAddMember">＋ 追加</button>
@@ -454,14 +460,14 @@ dialog .dlg-foot{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;ma
         <button class="btn" id="btnCsv">CSV</button>
         <button class="btn" id="btnJson">JSONバックアップ</button>
       </div>
-      <h3>取り込む（今のデータは置き換わります）</h3>
-      <div class="row">
+      <h3 class="editonly">取り込む（今のデータは置き換わります）</h3>
+      <div class="row editonly">
         <label class="btn">Excelを読み込む<input type="file" id="inExcel" accept=".xlsx,.xls" hidden></label>
         <label class="btn">JSONを読み込む<input type="file" id="inJson" accept=".json,application/json" hidden></label>
       </div>
     </div>
 
-    <div class="card">
+    <div class="card editonly">
       <h2>設定</h2>
       <div class="field">
         <label>アプリのタイトル</label>
@@ -493,7 +499,7 @@ dialog .dlg-foot{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;ma
       <p class="small muted">この2つはこの端末の中だけに記憶されます。iPhoneとMacで1回ずつ入力してください。</p>
     </div>
 
-    <div class="card">
+    <div class="card editonly">
       <h2 style="color:var(--danger)">危険な操作</h2>
       <div class="row">
         <button class="btn danger" id="btnClearAttendance">出席記録だけ全消去</button>
@@ -514,43 +520,43 @@ dialog .dlg-foot{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;ma
 <div id="toast" hidden><span id="toastMsg"></span><button id="toastAct" hidden></button></div>
 
 <!-- ========== ダイアログ群 ========== -->
-<dialog id="dlgDate"><form method="dialog" class="dlg-body">
+<dialog id="dlgDate"><div class="dlg-body">
   <h2 id="dlgDateTitle">開催日</h2>
   <div class="field"><label>日付</label><input type="date" id="dDate" required></div>
   <div class="field"><label>会場名</label><input type="text" id="dVenue" list="venues" placeholder="カリスマ"><datalist id="venues"></datalist></div>
   <div class="field"><label>一人負担金（円）</label><input type="number" id="dFee" min="0" step="100" inputmode="numeric"></div>
   <div class="field"><label>メモ（任意）</label><input type="text" id="dMemo"></div>
   <div class="dlg-foot">
-    <button class="btn danger" value="delete" id="dDelete">削除</button>
-    <button class="btn" value="cancel">やめる</button>
-    <button class="btn primary" value="ok">保存</button>
+    <button type="button" class="btn danger" data-act="delete" id="dDelete">削除</button>
+    <button type="button" class="btn" data-act="cancel">やめる</button>
+    <button type="button" class="btn primary" data-act="ok">保存</button>
   </div>
-</form></dialog>
+</div></dialog>
 
-<dialog id="dlgMember"><form method="dialog" class="dlg-body">
+<dialog id="dlgMember"><div class="dlg-body">
   <h2 id="dlgMemberTitle">メンバー</h2>
   <div class="field"><label>氏名</label><input type="text" id="mName" required></div>
   <div class="field"><label>ふりがな（任意）</label><input type="text" id="mKana" placeholder="ほそや よしかず"></div>
   <div class="field"><label>区分</label><input type="text" id="mGroup" list="groups" placeholder="一般"><datalist id="groups"></datalist></div>
   <div class="field"><label class="row" style="gap:6px"><input type="checkbox" id="mActive" style="width:18px;height:18px"> 有効（外すと退会者扱い。記録は残ります）</label></div>
   <div class="dlg-foot">
-    <button class="btn danger" value="delete" id="mDelete">削除</button>
-    <button class="btn" value="cancel">やめる</button>
-    <button class="btn primary" value="ok">保存</button>
+    <button type="button" class="btn danger" data-act="delete" id="mDelete">削除</button>
+    <button type="button" class="btn" data-act="cancel">やめる</button>
+    <button type="button" class="btn primary" data-act="ok">保存</button>
   </div>
-</form></dialog>
+</div></dialog>
 
-<dialog id="dlgBulk"><form method="dialog" class="dlg-body">
+<dialog id="dlgBulk"><div class="dlg-body">
   <h2>メンバーをまとめて追加</h2>
   <p class="small muted" style="margin-top:0">1行に1人。「氏名,ふりがな,区分」のように読点で区切ると、ふりがなと区分も一緒に登録できます。</p>
   <div class="field"><textarea id="bulkText" placeholder="佐藤　太郎&#10;鈴木　次郎,すずき じろう,一般&#10;学生12,,学生"></textarea></div>
   <div class="dlg-foot">
-    <button class="btn" value="cancel">やめる</button>
-    <button class="btn primary" value="ok">追加する</button>
+    <button type="button" class="btn" data-act="cancel">やめる</button>
+    <button type="button" class="btn primary" data-act="ok">追加する</button>
   </div>
-</form></dialog>
+</div></dialog>
 
-<dialog id="dlgSetup"><form method="dialog" class="dlg-body">
+<dialog id="dlgSetup"><div class="dlg-body">
   <h2>最初の設定</h2>
   <p class="small">クラウド（Googleスプレッドシート）に保存するため、次の2つを入力してください。
   セットアップ手順書の最後に書いてあるものです。<br>
@@ -558,10 +564,10 @@ dialog .dlg-foot{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;ma
   <div class="field"><label>Apps Script ウェブアプリのURL</label><input type="url" id="suUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
   <div class="field"><label>合言葉（トークン）</label><input type="text" id="suToken" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
   <div class="dlg-foot">
-    <button class="btn" value="later">あとで</button>
-    <button class="btn primary" value="ok">保存する</button>
+    <button type="button" class="btn" data-act="later">あとで</button>
+    <button type="button" class="btn primary" data-act="ok">保存する</button>
   </div>
-</form></dialog>
+</div></dialog>
 
 <script>
 "use strict";
@@ -595,17 +601,14 @@ let saving = false, pendingSave = false;
 let dateAsc = true;        // 日付の並び順
 let currentView = "matrix";
 let viewsStale = false;   // 他タブの表示が古くなっているか
+let readOnly   = false;   // 閲覧専用の合言葉で開いているか
+let serverRev  = null;    // サーバー側の更新回数（読んだ時点のもの）
+let baseWire   = null;    // 読んだ／保存した時点の内容。同時編集の突き合わせに使う
 
-/* ---- 初期データ（起動時に一度だけ入れる名簿） ---- */
-const SEED_GENERAL = ["細谷　吉和","佐藤　弘貴","竹田　智弘","橋本　一則","土田　憲一","伊藤　佳久",
-  "佐藤　幸徳","加藤　聖隆","滝田　貴文","鈴木　篤史","嶋貫　諭","髙橋　秀仁","小林　駿太","佐藤　清人",
-  "粟野ひろゆき","小関　弘成","遠藤　直樹","佐藤　葵","木村　魁誠","須貝　洋明","土田　誠","色摩　真司",
-  "高橋　和久","玉田","柿間　大地","山口　康幸","片倉　壮","金子　仁哉","川崎　龍人","佐藤　匠",
-  "伊藤　慧瑠","巻田　暉","加藤　春や","りょうま","桜井","笹原　皇太","しんご","多勢　彰悟"];
-const SEED_STUDENT = Array.from({length:11}, (_,i)=>"学生"+(i+1));
-/* 既存のExcel（04_カリスマリスト.xlsx）に入っていた練習日。不要なら管理画面から削除できます */
-const SEED_DATES = ["2026-09-08","2026-09-09","2026-09-10","2026-09-11","2026-09-12","2026-09-13",
-  "2026-09-14","2026-09-15","2026-09-16","2026-09-17","2026-09-18"];
+/* 初期名簿はこのファイルには持ちません。
+   実名を公開ファイルに書くと、URLを知った人に名簿が読まれてしまうためです。
+   名簿はGoogleスプレッドシート側にあります（新規に始める場合は
+   「管理」タブから追加するか、Excelを読み込んでください）。 */
 
 /* ================================================================
    小道具
@@ -628,6 +631,8 @@ function dow(iso){ const p=String(iso||"").split("-"); if(p.length<3) return -1;
   return new Date(+p[0],+p[1]-1,+p[2]).getDay(); }
 function todayIso(){ const d=new Date();
   return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+
+function hhmm(){ return new Date().toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"}); }
 
 let toastTimer=null;
 function toast(msg, actionLabel, actionFn, ms){
@@ -658,6 +663,17 @@ function setConn(url, token){
   try{ localStorage.setItem(LS_CONN, JSON.stringify({url:(url||"").trim(), token:(token||"").trim()})); }catch(e){}
 }
 function connReady(){ const c=getConn(); return !!(c.url && c.token); }
+
+/* 閲覧専用のときは、変更しようとした操作をここで止める */
+function canEdit(){
+  if(readOnly){ toast("閲覧専用モードです。記録の変更はできません"); return false; }
+  return true;
+}
+/* 閲覧専用なら編集用のボタンを隠し、上部に案内を出す */
+function applyRole(){
+  document.body.classList.toggle("readonly", readOnly);
+  const b = $("#roBanner"); if(b) b.hidden = !readOnly;
+}
 
 /* ================================================================
    GAS（受付係）との通信
@@ -704,15 +720,6 @@ function emptyState(){
     settings:{ defaultFee:2000, title:"獅子巡行 打ち上げ出席管理" },
     members:[], dates:[], attendance:{}
   };
-}
-function seedState(){
-  const s = emptyState();
-  let ord = 0;
-  SEED_GENERAL.forEach(n => s.members.push({id:newId("m"), name:n, kana:"", group:"一般", order:++ord, active:true}));
-  SEED_STUDENT.forEach(n => s.members.push({id:newId("m"), name:n, kana:"", group:"学生", order:++ord, active:true}));
-  let dord = 0;
-  SEED_DATES.forEach(d => s.dates.push({id:newId("d"), date:d, venue:"カリスマ", fee:2000, memo:"", order:++dord}));
-  return s;
 }
 /* 保存用（配列）へ */
 function toWire(s){
@@ -807,32 +814,125 @@ function saveCache(){
   try{ localStorage.setItem(LS_CACHE, JSON.stringify(toWire(state))); }catch(e){}
 }
 function scheduleSave(){
+  if(readOnly) return;
   if(!connReady()){ setSync("", "この端末のみ"); return; }
   clearTimeout(saveTimer);
   setSync("busy","保存待ち");
-  saveTimer = setTimeout(doSave, 800);
+  saveTimer = setTimeout(()=>{ saveTimer = null; doSave(); }, 800);
 }
-async function doSave(){
-  if(!connReady()) return;
+/* 保存待ち・保存中の変更が残っているか */
+function hasUnsaved(){ return !!saveTimer || saving || pendingSave; }
+async function doSave(attempt){
+  attempt = attempt || 0;
+  if(!connReady() || readOnly) return;
   if(saving){ pendingSave = true; return; }
   if(!navigator.onLine){
     try{ localStorage.setItem(LS_PEND, "1"); }catch(e){}
     setSync("err","圏外：保留中"); return;
   }
   saving = true; setSync("busy","保存中…");
+  let retry = false;
   try{
-    await api("save", toWire(state));
-    try{ localStorage.removeItem(LS_PEND); }catch(e){}
-    setSync("ok","保存しました " + new Date().toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"}));
+    const mine = toWire(state);
+    const res  = await api("save", { data: mine, baseRev: serverRev });
+
+    if(res && res.status === "conflict"){
+      // 自分が読んだあとに、他の端末が保存していた。
+      // 上書きせず「自分が触った所」だけを相手の内容に重ねる
+      const server = res.server || {settings:{},members:[],dates:[],attendance:[]};
+      const base   = baseWire ? JSON.parse(baseWire) : {settings:{},members:[],dates:[],attendance:[]};
+      state    = fromWire(merge3(base, mine, server));
+      serverRev = Number(res.rev) || 0;
+      baseWire  = JSON.stringify(server);
+      saveCache(); render();
+      if(attempt < 2){
+        retry = true;
+        toast("他の端末の変更を取り込みました");
+      }else{
+        setSync("err","保存できません");
+        toast("同時に編集されていて保存できませんでした。少し待ってからお試しください", "再試行", ()=>doSave(), 9000);
+      }
+    }else{
+      serverRev = Number(res && res.rev);
+      if(!isFinite(serverRev)) serverRev = null;
+      baseWire  = JSON.stringify(mine);
+      try{ localStorage.removeItem(LS_PEND); }catch(e){}
+      setSync("ok","保存しました " + hhmm());
+    }
   }catch(err){
     try{ localStorage.setItem(LS_PEND,"1"); }catch(e){}
     setSync("err","保存できません");
     toast("保存に失敗：" + err.message, "再試行", ()=>doSave(), 9000);
   }finally{
     saving = false;
-    if(pendingSave){ pendingSave=false; scheduleSave(); }
+    if(!retry && pendingSave){ pendingSave=false; scheduleSave(); }
   }
+  if(retry) return doSave(attempt + 1);
 }
+
+/* ================================================================
+   同時編集の突き合わせ（3つを見比べて1つにまとめる）
+     base   … 自分が読んだ時点の内容
+     mine   … いま自分の画面にある内容
+     server … 相手が保存した、サーバーの最新
+   「自分が触っていない所は相手を尊重し、触った所だけ自分を通す」
+   ================================================================ */
+function merge3(base, mine, server){
+  const outw = {
+    settings: Object.assign({}, server.settings||{}),
+    members: (server.members||[]).slice(),
+    dates:   (server.dates||[]).slice(),
+    attendance: []
+  };
+  // ---- 出席記録 ----
+  const bA = attIndex(base), mA = attIndex(mine), sA = attIndex(server);
+  const keys = {};
+  Object.keys(bA).forEach(k=>keys[k]=1); Object.keys(mA).forEach(k=>keys[k]=1);
+  Object.keys(keys).forEach(k=>{
+    const b = bA[k] || null, m = mA[k] || null;
+    if(attSig(b) === attSig(m)) return;      // 自分は触っていない → 相手のまま
+    if(m) sA[k] = m; else delete sA[k];      // 自分が触った → 自分を通す
+  });
+  outw.attendance = Object.keys(sA).map(k=>{
+    const i = k.indexOf("|");
+    return { memberId:k.slice(0,i), dateId:k.slice(i+1), present:!!sA[k].p, collected:!!sA[k].c };
+  });
+  // ---- メンバー・開催日 ----
+  outw.members = mergeList(base.members, mine.members, server.members,
+                           ["name","kana","group","order","active"]);
+  outw.dates   = mergeList(base.dates, mine.dates, server.dates,
+                           ["date","venue","fee","memo","order"]);
+  // ---- 設定 ----
+  if(sig(base.settings,["title","defaultFee"]) !== sig(mine.settings,["title","defaultFee"])){
+    outw.settings = mine.settings;
+  }
+  return outw;
+}
+function attIndex(w){
+  const m = {};
+  (w && w.attendance || []).forEach(a=>{
+    m[String(a.memberId)+"|"+String(a.dateId)] = { p:!!a.present, c:!!a.collected };
+  });
+  return m;
+}
+function attSig(a){ return a ? (a.p?"1":"0") + (a.c?"1":"0") : "-"; }
+function sig(o, keys){ return keys.map(k=>String(o && o[k]!=null ? o[k] : "")).join("\u0001"); }
+function mergeList(base, mine, server, keys){
+  const b = {}, m = {}, seen = {};
+  (base||[]).forEach(x=>b[x.id]=x);
+  (mine||[]).forEach(x=>m[x.id]=x);
+  const res = [];
+  (server||[]).forEach(sv=>{
+    seen[sv.id] = 1;
+    const mv = m[sv.id], bv = b[sv.id];
+    if(bv && !mv) return;                                  // 自分が消した → 消す
+    if(mv && sig(mv,keys) !== sig(bv,keys)) res.push(mv);   // 自分が直した → 自分を通す
+    else res.push(mv && !bv ? mv : sv);
+  });
+  (mine||[]).forEach(mv=>{ if(!seen[mv.id] && !b[mv.id]) res.push(mv); });  // 自分が足した
+  return res;
+}
+
 window.addEventListener("online", ()=>{
   let pend=null; try{ pend = localStorage.getItem(LS_PEND); }catch(e){}
   if(pend){ toast("オンラインに復帰。保存します"); doSave(); }
@@ -858,7 +958,7 @@ async function boot(){
 
   // 接続先が未設定なら、最初の設定ダイアログを出す
   if(!connReady()){
-    if(!state){ state = seedState(); saveCache(); render(); }
+    if(!state){ state = emptyState(); saveCache(); render(); }
     setSync("", "この端末のみ");
     openSetup();
     return;
@@ -874,21 +974,17 @@ async function reload(showSeedIfEmpty){
   try{
     const w = await api("load");
     const fresh = fromWire(w);
+    readOnly  = (w && w.role === "view");
+    serverRev = Number(w && w.rev); if(!isFinite(serverRev)) serverRev = null;
+    baseWire  = JSON.stringify(toWire(fresh));
+    state = fresh;
+    saveCache(); applyRole(); render();
+    setSync("ok", readOnly ? "閲覧専用・最新です " + hhmm() : "最新です " + hhmm());
     if(fresh.members.length === 0 && fresh.dates.length === 0){
-      // クラウド側が空＝初回。名簿をシードして書き戻す
-      state = seedState();
-      render(); saveCache();
-      setSync("busy","初期名簿を登録中…");
-      await api("save", toWire(state));
-      setSync("ok","初期名簿を登録しました");
-      toast("初期名簿(" + state.members.length + "名)と練習日を登録しました");
-    }else{
-      state = fresh;
-      saveCache(); render();
-      setSync("ok","最新です " + new Date().toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"}));
+      toast("つながりましたが、まだデータがありません。「管理」タブでメンバーと開催日を追加するか、Excelを読み込んでください", null, null, 9000);
     }
   }catch(err){
-    if(!state){ state = seedState(); saveCache(); render(); }
+    if(!state){ state = emptyState(); saveCache(); render(); }
     setSync("err","取得できません");
     toast("読み込み失敗：" + err.message, "再試行", ()=>reload(), 9000);
   }
@@ -962,6 +1058,7 @@ function visibleMembers(){
 function render(){
   if(!state) return;
   viewsStale = false;
+  applyRole();
   $("#appTitle").textContent = state.settings.title || "獅子巡行 打ち上げ出席管理";
   document.title = state.settings.title || "獅子巡行 打ち上げ出席管理";
   $("#printTitle").textContent = (state.settings.title||"") + "　（印刷日：" + fmtDate(todayIso(),"long") + "）";
@@ -1103,14 +1200,14 @@ function renderDay(){
         <span class="nm">${esc(m.name)}</span>
         <span class="amt">${yen(d.fee)}</span></li>`;
     }).join("") + `</ul>
-    <div class="row" style="margin-top:10px">
+    <div class="row editonly" style="margin-top:10px">
       <button class="btn sm" data-allpaid="1">全員を集金済にする</button>
       <button class="btn sm" data-allunpaid="1">全員を未集金に戻す</button>
     </div>`;
   }
   h += `</div>`;
 
-  h += `<div class="card"><h2>参加者を追加（不参加の人）</h2>
+  h += `<div class="card editonly"><h2>参加者を追加（不参加の人）</h2>
     <p class="small muted" style="margin-top:0">名前を押すとこの日の参加になります。</p>
     <div class="row" id="addJoin">` +
     (notJoined.length ? notJoined.map(m=>`<button class="btn sm" data-add="${esc(m.id)}" data-d="${esc(d.id)}">＋ ${esc(m.name)}</button>`).join("")
@@ -1208,6 +1305,7 @@ function renderAdmin(){
    取り消し（1手だけ）
    ================================================================ */
 function pushUndo(label){
+  if(readOnly) return;
   undoSnap = { label, wire: JSON.stringify(toWire(state)) };
   updateUndoBtn();
 }
@@ -1235,6 +1333,7 @@ function afterChange(label){
    操作
    ================================================================ */
 function togglePresent(mid,did){
+  if(!canEdit()) return;
   pushUndo("出席");
   const k = key(mid,did), a = state.attendance[k] || {p:false,c:false};
   a.p = !a.p;
@@ -1243,6 +1342,7 @@ function togglePresent(mid,did){
   markDirtyCell(mid, did);
 }
 function toggleCollected(mid,did){
+  if(!canEdit()) return;
   const k = key(mid,did), a = state.attendance[k] || {p:false,c:false};
   if(!a.p){ toast("先に「参加」にしてください"); return; }
   pushUndo("集金");
@@ -1334,6 +1434,7 @@ function bindUI(){
   /* --- 日別ビュー --- */
   $("#daySelect").addEventListener("change", renderDay);
   $("#dayPane").addEventListener("click", e=>{
+    if(e.target.closest("#dayList li, [data-add], [data-allpaid], [data-allunpaid]") && !canEdit()) return;
     const li = e.target.closest("#dayList li");
     if(li){ toggleCollected(li.dataset.m, li.dataset.d); return; }
     const add = e.target.closest("[data-add]");
@@ -1351,18 +1452,19 @@ function bindUI(){
   });
 
   /* --- 管理：開催日 --- */
-  $("#btnAddDate").addEventListener("click", ()=> openDateDialog(null));
+  $("#btnAddDate").addEventListener("click", ()=>{ if(canEdit()) openDateDialog(null); });
   $("#dateList").addEventListener("click", e=>{
     const b = e.target.closest("[data-editdate]"); if(b) openDateDialog(b.dataset.editdate);
   });
 
   /* --- 管理：メンバー --- */
-  $("#btnAddMember").addEventListener("click", ()=> openMemberDialog(null));
+  $("#btnAddMember").addEventListener("click", ()=>{ if(canEdit()) openMemberDialog(null); });
   $("#memberList").addEventListener("click", e=>{
     const b = e.target.closest("[data-editmember]"); if(b) openMemberDialog(b.dataset.editmember);
   });
-  $("#btnBulkAdd").addEventListener("click", openBulkDialog);
+  $("#btnBulkAdd").addEventListener("click", ()=>{ if(canEdit()) openBulkDialog(); });
   $("#btnSortKana").addEventListener("click", ()=>{
+    if(!canEdit()) return;
     pushUndo("並べ替え");
     const a = state.members.slice().sort((x,y)=>
       (x.kana||x.name).localeCompare(y.kana||y.name, "ja"));
@@ -1370,6 +1472,7 @@ function bindUI(){
     afterChange("ふりがな順に並べ替えました");
   });
   $("#btnSortCount").addEventListener("click", ()=>{
+    if(!canEdit()) return;
     pushUndo("並べ替え");
     const a = state.members.slice().sort((x,y)=> memberStats(y).cnt - memberStats(x).cnt ||
       (x.kana||x.name).localeCompare(y.kana||y.name,"ja"));
@@ -1377,6 +1480,11 @@ function bindUI(){
     afterChange("参加回数の多い順に並べ替えました");
   });
   bindDragSort();
+  document.addEventListener("visibilitychange", ()=>{
+    if(document.visibilityState !== "visible") return;
+    if(!connReady() || hasUnsaved()) return;    // 未保存があるときは触らない
+    reload();
+  });
   window.addEventListener("resize", fitTable);
   window.addEventListener("orientationchange", ()=> setTimeout(fitTable, 250));
   updateUndoBtn();
@@ -1390,6 +1498,7 @@ function bindUI(){
 
   /* --- 設定 --- */
   $("#btnSaveSettings").addEventListener("click", ()=>{
+    if(!canEdit()) return;
     pushUndo("設定");
     state.settings.title = $("#setTitle").value.trim() || "獅子巡行 打ち上げ出席管理";
     state.settings.defaultFee = Math.max(0, Number($("#setFee").value)||0);
@@ -1405,28 +1514,19 @@ function bindUI(){
 
   /* --- 危険な操作 --- */
   $("#btnClearAttendance").addEventListener("click", ()=>{
+    if(!canEdit()) return;
     if(!confirm("出席記録をすべて消します。メンバーと開催日は残ります。\nよろしいですか？")) return;
     pushUndo("全消去");
     state.attendance = {};
     afterChange("出席記録を消去しました");
   });
   $("#btnClearAll").addEventListener("click", ()=>{
-    if(!confirm("メンバー・開催日・出席記録をすべて消して、初期名簿に戻します。\n【この操作は取り消せますが、保存後は元に戻せません】\nよろしいですか？")) return;
-    if(!confirm("本当に初期化してよろしいですか？")) return;
+    if(!canEdit()) return;
+    if(!confirm("メンバー・開催日・出席記録をすべて消して、空にします。\n【この操作は取り消せますが、保存後は元に戻せません】\nよろしいですか？")) return;
+    if(!confirm("本当に全部消してよろしいですか？")) return;
     pushUndo("初期化");
-    state = seedState();
-    afterChange("初期名簿に戻しました");
-  });
-
-  /* --- 最初の設定ダイアログ --- */
-  $("#dlgSetup").addEventListener("close", async ()=>{
-    if($("#dlgSetup").returnValue === "ok"){
-      setConn($("#suUrl").value, $("#suToken").value);
-      if(connReady()) await reload();
-      else toast("URLと合言葉の両方を入れてください。管理タブからいつでも設定できます", null, null, 6000);
-    }else{
-      toast("この端末だけで使います。管理タブでいつでもクラウド設定できます", null, null, 5000);
-    }
+    state = emptyState();
+    afterChange("すべて消しました");
   });
 }
 
@@ -1479,6 +1579,7 @@ function bindDragSort(){
   let dragEl=null, startY=0;
   list.addEventListener("pointerdown", e=>{
     const h = e.target.closest("[data-handle]"); if(!h) return;
+    if(!canEdit()) return;
     dragEl = h.closest("li"); if(!dragEl) return;
     startY = e.clientY;
     dragEl.classList.add("dragging");
@@ -1518,6 +1619,23 @@ function bindDragSort(){
 /* ================================================================
    ダイアログ
    ================================================================ */
+/* ダイアログのボタンは click で直接受ける。
+   dialog の close イベントは環境によって発火しないことがあり、
+   それに頼ると「保存を押しても何も起きない」が起こるため。 */
+function bindDialog(sel, handler){
+  const dlg = $(sel);
+  dlg.addEventListener("click", e=>{
+    const b = e.target.closest("[data-act]");
+    if(!b || !dlg.contains(b)) return;
+    e.preventDefault();
+    const act = b.dataset.act;
+    if(act === "cancel"){ dlg.close(); return; }
+    if(handler(act) === false) return;   // 入力に不備があるときは閉じない
+    dlg.close();
+  });
+}
+
+/* ---- 開催日 ---- */
 let editingDateId = null;
 function openDateDialog(id){
   editingDateId = id;
@@ -1530,20 +1648,20 @@ function openDateDialog(id){
   $("#dDelete").hidden = !d;
   $("#dlgDate").showModal();
 }
-$("#dlgDate").addEventListener("close", ()=>{
-  const rv = $("#dlgDate").returnValue;
-  if(rv === "cancel" || rv === "") return;
-  if(rv === "delete"){
-    const d = state.dates.find(x=>x.id===editingDateId); if(!d) return;
-    if(!confirm(fmtDate(d.date,"long") + " を削除します。\nこの日の出席記録も消えます。よろしいですか？")) return;
+bindDialog("#dlgDate", act=>{
+  if(!canEdit()) return true;
+  if(act === "delete"){
+    const d = state.dates.find(x=>x.id===editingDateId);
+    if(!d) return true;
+    if(!confirm(fmtDate(d.date,"long") + " を削除します。\nこの日の出席記録も消えます。よろしいですか？")) return false;
     pushUndo("日削除");
     state.dates = state.dates.filter(x=>x.id!==editingDateId);
     Object.keys(state.attendance).forEach(k=>{ if(k.endsWith("|"+editingDateId)) delete state.attendance[k]; });
     afterChange("開催日を削除しました");
-    return;
+    return true;
   }
   const date = $("#dDate").value;
-  if(!date){ toast("日付を入れてください"); return; }
+  if(!date){ toast("日付を入れてください"); return false; }
   pushUndo("日編集");
   const venue = $("#dVenue").value.trim() || "カリスマ";
   const fee   = Math.max(0, Number($("#dFee").value) || state.settings.defaultFee || 0);
@@ -1557,8 +1675,10 @@ $("#dlgDate").addEventListener("close", ()=>{
     state.dates.push({ id:newId("d"), date, venue, fee, memo, order:maxo+1 });
     afterChange("開催日を追加しました");
   }
+  return true;
 });
 
+/* ---- メンバー ---- */
 let editingMemberId = null;
 function openMemberDialog(id){
   editingMemberId = id;
@@ -1570,25 +1690,26 @@ function openMemberDialog(id){
   $("#mActive").checked = m ? m.active !== false : true;
   $("#mDelete").hidden = !m;
   $("#dlgMember").showModal();
+  setTimeout(()=>{ try{ $("#mName").focus(); }catch(e){} }, 60);
 }
-$("#dlgMember").addEventListener("close", ()=>{
-  const rv = $("#dlgMember").returnValue;
-  if(rv === "cancel" || rv === "") return;
-  if(rv === "delete"){
-    const m = state.members.find(x=>x.id===editingMemberId); if(!m) return;
+bindDialog("#dlgMember", act=>{
+  if(!canEdit()) return true;
+  if(act === "delete"){
+    const m = state.members.find(x=>x.id===editingMemberId);
+    if(!m) return true;
     const st = memberStats(m);
     const msg = st.cnt > 0
       ? `${m.name} さんを削除します。参加記録 ${st.cnt}回・${yen(st.total)} も一緒に消えます。\n記録を残したい場合は「削除」ではなく、有効のチェックを外して退会扱いにしてください。\n本当に削除しますか？`
       : `${m.name} さんを削除します。よろしいですか？`;
-    if(!confirm(msg)) return;
+    if(!confirm(msg)) return false;
     pushUndo("人削除");
     state.members = state.members.filter(x=>x.id!==editingMemberId);
     Object.keys(state.attendance).forEach(k=>{ if(k.startsWith(editingMemberId+"|")) delete state.attendance[k]; });
     afterChange("メンバーを削除しました");
-    return;
+    return true;
   }
   const name = $("#mName").value.trim();
-  if(!name){ toast("氏名を入れてください"); return; }
+  if(!name){ toast("氏名を入れてください"); return false; }
   pushUndo("人編集");
   const kana = $("#mKana").value.trim(), group = $("#mGroup").value.trim(), active = $("#mActive").checked;
   if(editingMemberId){
@@ -1600,31 +1721,45 @@ $("#dlgMember").addEventListener("close", ()=>{
     state.members.push({ id:newId("m"), name, kana, group, order:maxo+1, active });
     afterChange("メンバーを追加しました");
   }
+  return true;
 });
 
+/* ---- まとめて追加 ---- */
 function openBulkDialog(){ $("#bulkText").value=""; $("#dlgBulk").showModal(); }
-$("#dlgBulk").addEventListener("close", ()=>{
-  if($("#dlgBulk").returnValue !== "ok") return;
-  const lines = $("#bulkText").value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-  if(!lines.length) return;
+bindDialog("#dlgBulk", ()=>{
+  if(!canEdit()) return true;
+  const lines = $("#bulkText").value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+  if(!lines.length){ toast("1行に1人ずつ入力してください"); return false; }
   pushUndo("まとめて追加");
   let maxo = state.members.reduce((a,b)=>Math.max(a,b.order||0),0);
   let n=0;
   lines.forEach(line=>{
-    const p = line.split(/[,、\t]/).map(s=>s.trim());
-    const name = p[0]; if(!name) return;
-    state.members.push({ id:newId("m"), name, kana:p[1]||"", group:p[2]||"一般", order:++maxo, active:true });
+    const parts = line.split(/[,、\t]/).map(x=>x.trim());
+    const name = parts[0]; if(!name) return;
+    state.members.push({ id:newId("m"), name, kana:parts[1]||"", group:parts[2]||"一般", order:++maxo, active:true });
     n++;
   });
   afterChange(n + "名を追加しました");
+  return true;
 });
 
+/* ---- 最初の設定 ---- */
 function openSetup(){
   const c = getConn();
   $("#suUrl").value = c.url || "";
   $("#suToken").value = c.token || "";
   $("#dlgSetup").showModal();
 }
+bindDialog("#dlgSetup", act=>{
+  if(act === "later"){
+    toast("この端末だけで使います。管理タブでいつでもクラウド設定できます", null, null, 5000);
+    return true;
+  }
+  setConn($("#suUrl").value, $("#suToken").value);
+  if(!connReady()){ toast("URLと合言葉の両方を入れてください"); return false; }
+  setTimeout(()=>reload(), 0);
+  return true;
+});
 
 /* ================================================================
    書き出し
@@ -1714,6 +1849,7 @@ function exportJson(){
    取り込み
    ================================================================ */
 function importJson(file){
+  if(!canEdit()) return;
   const fr = new FileReader();
   fr.onload = ()=>{
     try{
@@ -1731,6 +1867,7 @@ function importJson(file){
 
 /* Excel（既存の 04_カリスマリスト.xlsx を含む）を読み込む */
 function importExcel(file){
+  if(!canEdit()) return;
   const fr = new FileReader();
   fr.onload = ()=>{
     try{
