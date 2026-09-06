@@ -496,6 +496,22 @@ body.readonly .daycheck li .box{opacity:.6}
         <button class="btn" id="btnReload">最新を取得</button>
       </div>
       <div id="connResult" class="notice" hidden></div>
+      <div class="editonly" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
+        <h3 style="margin-top:0">他の人に渡す</h3>
+        <p class="small muted" style="margin-top:0">
+          招待リンクを渡すと、相手は<b>URLの入力が不要</b>になり、<b>合言葉だけ</b>を入れれば使えます。</p>
+        <div class="row"><button class="btn" id="btnInvite">招待リンクを作る</button></div>
+        <div id="inviteBox" hidden style="margin-top:10px">
+          <input id="inviteUrl" type="text" readonly
+            style="width:100%;min-height:44px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)">
+          <div class="row" style="margin-top:6px">
+            <button class="btn sm primary" id="btnCopyInvite">リンクをコピー</button>
+          </div>
+          <p class="small muted" style="margin:8px 0 0">
+            <b>合言葉はこのリンクに含まれていません。</b>リンクが人づてに回っても、それだけでは中身は見られません。
+            合言葉は別に伝えてください（見せるだけの相手には<b>見る用の合言葉</b>を）。</p>
+        </div>
+      </div>
       <p class="small muted">この2つはこの端末の中だけに記憶されます。iPhoneとMacで1回ずつ入力してください。</p>
     </div>
 
@@ -558,10 +574,13 @@ body.readonly .daycheck li .box{opacity:.6}
 
 <dialog id="dlgSetup"><div class="dlg-body">
   <h2>最初の設定</h2>
-  <p class="small">クラウド（Googleスプレッドシート）に保存するため、次の2つを入力してください。
+  <p class="small" id="suHintInvited" hidden><b>合言葉だけ入力してください。</b>
+  接続先は設定済みです。合言葉は、このアプリを渡してくれた方にお聞きください。<br>
+  入力はこの端末で最初の1回だけです。次からは開くだけで使えます。</p>
+  <p class="small" id="suHintPlain">クラウド（Googleスプレッドシート）に保存するため、次の2つを入力してください。
   セットアップ手順書の最後に書いてあるものです。<br>
   <b>あとで入力する場合は「あとで」を押してください。</b>この端末の中だけで動きます（他の端末とは同期しません）。</p>
-  <div class="field"><label>Apps Script ウェブアプリのURL</label><input type="url" id="suUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
+  <div class="field" id="suUrlField"><label>Apps Script ウェブアプリのURL</label><input type="url" id="suUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
   <div class="field"><label>合言葉（トークン）</label><input type="text" id="suToken" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"></div>
   <div class="dlg-foot">
     <button type="button" class="btn" data-act="later">あとで</button>
@@ -955,6 +974,14 @@ async function boot(){
   if(state){ render(); setSync("", "手元の記録を表示中"); }
 
   bindUI();
+
+  // 招待リンクで開かれた場合は、接続先URLを先に控えておく（合言葉だけ入れれば済むように）
+  const invited = urlFromHash();
+  if(invited){
+    const c = getConn();
+    if(!c.url || !c.token) setConn(invited, c.token || "");
+    try{ history.replaceState(null, "", location.pathname + location.search); }catch(e){}
+  }
 
   // 接続先が未設定なら、最初の設定ダイアログを出す
   if(!connReady()){
@@ -1509,6 +1536,24 @@ function bindUI(){
     if(!connReady()){ toast("URLと合言葉の両方を入力してください"); return; }
     await reload();
   });
+  $("#btnInvite").addEventListener("click", ()=>{
+    const link = buildInviteLink();
+    if(!link){ toast("先に接続先のURLを設定してください"); return; }
+    $("#inviteUrl").value = link;
+    $("#inviteBox").hidden = false;
+    try{ $("#inviteUrl").select(); }catch(e){}
+  });
+  $("#btnCopyInvite").addEventListener("click", async ()=>{
+    const el = $("#inviteUrl");
+    try{
+      await navigator.clipboard.writeText(el.value);
+      toast("リンクをコピーしました");
+    }catch(e){
+      el.select();
+      let ok=false; try{ ok = document.execCommand("copy"); }catch(e2){}
+      toast(ok ? "リンクをコピーしました" : "選択された文字を長押ししてコピーしてください", null, null, 6000);
+    }
+  });
   $("#btnTestConn").addEventListener("click", testConn);
   $("#btnReload").addEventListener("click", ()=> reload());
 
@@ -1528,6 +1573,25 @@ function bindUI(){
     state = emptyState();
     afterChange("すべて消しました");
   });
+}
+
+/* ---- 招待リンク（アプリのURLに、接続先URLを付けたもの） ---- */
+function buildInviteLink(){
+  const c = getConn();
+  if(!c.url) return "";
+  let enc;
+  try{ enc = btoa(c.url); }catch(e){ enc = ""; }
+  if(!enc) return "";
+  return location.origin + location.pathname + "#u=" + encodeURIComponent(enc);
+}
+/* 招待リンクで開かれた時、そこに入っている接続先URLを取り出す */
+function urlFromHash(){
+  const m = String(location.hash || "").match(/[#&]u=([^&]+)/);
+  if(!m) return "";
+  try{
+    const v = atob(decodeURIComponent(m[1]));
+    return /^https?:\/\//.test(v) ? v : "";   // http(s) 以外は受け付けない
+  }catch(e){ return ""; }
 }
 
 /* ---- 接続テスト。どこが悪いのかを日本語で示す ---- */
@@ -1748,7 +1812,13 @@ function openSetup(){
   const c = getConn();
   $("#suUrl").value = c.url || "";
   $("#suToken").value = c.token || "";
+  // 招待リンク経由でURLが入っている時は、合言葉だけに集中してもらう
+  const prefilled = !!c.url;
+  $("#suHintInvited").hidden = !prefilled;
+  $("#suHintPlain").hidden   = prefilled;
+  $("#suUrlField").hidden    = prefilled;
   $("#dlgSetup").showModal();
+  setTimeout(()=>{ try{ $("#suToken").focus(); }catch(e){} }, 60);
 }
 bindDialog("#dlgSetup", act=>{
   if(act === "later"){
