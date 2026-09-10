@@ -6,6 +6,9 @@
 <meta name="color-scheme" content="light dark">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="打ち上げ出席">
+<!-- ホーム画面・タブのアイコン（獅子頭の写真）。index.html と同じ場所に置く -->
+<link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <title>獅子巡行 打ち上げ出席管理</title>
 
 <!-- 日本語フォント（Noto Sans JP）。CDN＝インターネット上の配布置き場のこと -->
@@ -28,7 +31,7 @@
   --warn-bg:#fbbf24; --warn-text:#402c00; --warn-line:#d99e00;
   --danger:#c0392b; --danger-weak:#fdecea;
   --head:#eef1f4; --shadow:0 1px 3px rgba(0,0,0,.10), 0 6px 18px rgba(0,0,0,.06);
-  --join-bg:#eefaf1; --unpaid-bg:#fff7e3;
+  --join-bg:#eefaf1; --unpaid-bg:#fff7e3; --draft:#c2410c;
   --radius:12px;
 }
 :root[data-theme="dark"]{
@@ -39,7 +42,7 @@
   --warn-bg:#a16207; --warn-text:#ffe9b3; --warn-line:#ca8a04;
   --danger:#f87171; --danger-weak:#3a1f1d;
   --head:#262a31; --shadow:0 1px 3px rgba(0,0,0,.5), 0 6px 18px rgba(0,0,0,.35);
-  --join-bg:#15251c; --unpaid-bg:#2b2411;
+  --join-bg:#15251c; --unpaid-bg:#2b2411; --draft:#ea580c;
 }
 
 /* 素のWebサイトなので、リセットは自前で持つ。
@@ -323,9 +326,33 @@ dialog h2{margin:0 0 12px;font-size:17px}
 dialog .dlg-foot{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:6px}
 
 /* トースト（画面下の一時メッセージ） */
+/* ---- 下書き（未保存）の目印と、画面下の保存バー ---- */
+td.cell[data-draft="1"]{outline:2.5px dashed var(--draft);outline-offset:-4px}
+ul.entry li.draft{box-shadow:inset 5px 0 0 var(--draft)}
+ul.entry li.draft .no{color:var(--draft);font-weight:700}
+#saveBar{
+  position:fixed;left:0;right:0;bottom:var(--navH,64px);z-index:65;
+  background:var(--draft);color:#fff;
+  display:flex;align-items:center;gap:8px;padding:8px 12px;
+  box-shadow:0 -4px 16px rgba(0,0,0,.18)
+}
+#saveBar .cnt{flex:1 1 auto;font-weight:700;font-size:14px;line-height:1.3}
+#saveBar .cnt small{display:block;font-weight:400;font-size:11px;opacity:.9}
+#saveBar .btn{min-height:44px}
+#saveBar .btn.ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.7)}
+#saveBar .btn.go{background:#fff;color:var(--draft);border-color:#fff;font-weight:700}
+body.has-draft #toast{bottom:calc(var(--navH,64px) + 72px)}
+body.has-draft{padding-bottom:calc(64px + 62px + env(safe-area-inset-bottom))}
+.rv-date{margin:12px 0 4px;font-weight:700;font-size:14px}
+.rv-list{list-style:none;margin:0;padding:0}
+.rv-list li{display:flex;gap:8px;align-items:baseline;padding:6px 2px;border-bottom:1px solid var(--line);font-size:14px}
+.rv-list .who{flex:1 1 auto;min-width:0;font-weight:500}
+.rv-list .chg{flex:none;font-size:12.5px;white-space:nowrap}
+.rv-list .chg b{color:var(--accent)}
+
 #toast{
   position:fixed;left:50%;transform:translateX(-50%);
-  bottom:calc(74px + env(safe-area-inset-bottom));z-index:200;
+  bottom:calc(var(--navH,64px) + 10px);z-index:200;
   background:#111827;color:#fff;padding:10px 16px;border-radius:999px;
   font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.35);
   display:flex;align-items:center;gap:10px;max-width:calc(100vw - 24px)
@@ -593,6 +620,12 @@ body.readonly .daycheck li .box{opacity:.6}
   <button role="tab" data-view="admin" aria-selected="false"><span class="ic">⚙︎</span>管理</button>
 </nav>
 
+<div id="saveBar" class="noprint editonly" hidden>
+  <div class="cnt"><span id="saveBarCnt">未保存 0件</span><small>まだ保存されていません</small></div>
+  <button type="button" class="btn sm ghost" id="btnDiscard">やめる</button>
+  <button type="button" class="btn go" id="btnReview">確認して保存</button>
+</div>
+
 <div id="toast" hidden><span id="toastMsg"></span><button id="toastAct" hidden></button></div>
 
 <!-- ========== ダイアログ群 ========== -->
@@ -632,6 +665,16 @@ body.readonly .daycheck li .box{opacity:.6}
   </div>
 </div></dialog>
 
+<dialog id="dlgReview"><div class="dlg-body">
+  <h2>この内容で保存しますか？</h2>
+  <p class="small muted" style="margin-top:0">押し間違いがないか確認してください。違っていたら「戻る」で直せます。</p>
+  <div id="reviewList"></div>
+  <div class="dlg-foot">
+    <button type="button" class="btn" data-act="cancel">戻る</button>
+    <button type="button" class="btn primary" data-act="ok">保存する</button>
+  </div>
+</div></dialog>
+
 <dialog id="dlgSetup"><div class="dlg-body">
   <h2>最初の設定</h2>
   <p class="small" id="suHintInvited" hidden><b>合言葉だけ入力してください。</b>
@@ -666,6 +709,7 @@ const LS_CACHE = "karisma_cache_v1";
 const LS_CONN  = "karisma_conn_v1";
 const LS_THEME = "karisma_theme_v1";
 const LS_PEND  = "karisma_pending_v1";
+const LS_DRAFT = "karisma_draft_v1";   // 保存前の下書き（出席・集金）
 
 const $  = (s, r) => (r || document).querySelector(s);
 const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
@@ -686,6 +730,8 @@ let viewsStale = false;   // 他タブの表示が古くなっているか
 let readOnly   = false;   // 閲覧専用の合言葉で開いているか
 let serverRev  = null;    // サーバー側の更新回数（読んだ時点のもの）
 let baseWire   = null;    // 読んだ／保存した時点の内容。同時編集の突き合わせに使う
+let pending    = {};      // 下書き。 "メンバーid|開催日id" → {p, c}（保存ボタンを押すまでクラウドに送らない）
+let viewSaved  = false;   // true の間は下書きを無視して「保存済み」だけを見る（書き出し用）
 
 /* 初期名簿はこのファイルには持ちません。
    実名を公開ファイルに書くと、URLを知った人に名簿が読まれてしまうためです。
@@ -743,6 +789,7 @@ function getConn(){
 }
 function setConn(url, token){
   try{ localStorage.setItem(LS_CONN, JSON.stringify({url:(url||"").trim(), token:(token||"").trim()})); }catch(e){}
+  if(typeof syncHash === "function") syncHash();
 }
 function connReady(){ const c=getConn(); return !!(c.url && c.token); }
 
@@ -845,14 +892,16 @@ function markDirty(){
 }
 /* 出席や集金を1つ切り替えたあとの反映。いま見ている画面に応じて最小限だけ描き直す */
 function afterToggle(mid, did){
+  const filtered = $("#fUnpaid").checked || !!$("#fDate").value;
   if(currentView === "day"){
-    saveCache();
     if(patchDayRow(mid, did)){ renderDaySummary(); viewsStale = true; }
     else renderDay();
-    scheduleSave();
-    return;
+  }else if(currentView === "matrix" && !filtered && patchCell(mid, did)){
+    renderGrand(); viewsStale = true;
+  }else{
+    render();
   }
-  markDirtyCell(mid, did);
+  updateSaveBar();
 }
 
 /* セル1つだけの変更。表を丸ごと描き直すとスクロール位置が戻ってしまうので、
@@ -875,6 +924,7 @@ function patchCell(mid, did){
   const a = att(mid, did);
   td.dataset.p = a.p ? 1 : 0;
   td.dataset.c = a.c ? 1 : 0;
+  td.dataset.draft = isDraft(mid, did) ? 1 : 0;
   td.innerHTML = `<span class="mark">${a.p?"✓":""}</span>` +
                  (a.p ? `<span class="yen" data-yen="1">${a.c?"済":"¥"}</span>` : "");
   // 行の右端（回数・負担額・未集金）
@@ -1046,7 +1096,9 @@ async function boot(){
   let cached=null;
   try{ cached = JSON.parse(localStorage.getItem(LS_CACHE) || "null"); }catch(e){}
   state = cached ? fromWire(cached) : null;
+  loadDraft();
   if(state){ render(); setSync("", "手元の記録を表示中"); }
+  if(draftCount()) toast("前回の未保存の変更が " + draftCount() + "件 残っています。確認して保存してください", null, null, 7000);
 
   bindUI();
 
@@ -1055,8 +1107,8 @@ async function boot(){
   if(invited){
     const c = getConn();
     if(!c.url || !c.token) setConn(invited, c.token || "");
-    try{ history.replaceState(null, "", location.pathname + location.search); }catch(e){}
   }
+  syncHash();
 
   // 接続先が未設定なら、最初の設定ダイアログを出す
   if(!connReady()){
@@ -1107,7 +1159,44 @@ function sortedDates(){
 function sortedMembers(){
   return state.members.slice().sort((a,b)=>(a.order||0)-(b.order||0));
 }
-function att(mid,did){ return state.attendance[key(mid,did)] || {p:false,c:false}; }
+/* 画面に出す値。下書きがあれば下書きを、なければ保存済みを返す */
+function att(mid,did){
+  const k = key(mid,did);
+  if(!viewSaved && pending[k]) return pending[k];
+  return state.attendance[k] || {p:false,c:false};
+}
+function savedAtt(mid,did){ return state.attendance[key(mid,did)] || {p:false,c:false}; }
+function isDraft(mid,did){ return !!pending[key(mid,did)]; }
+function draftCount(){ return Object.keys(pending).length; }
+
+/* 下書きに1件書く。保存済みと同じ値に戻ったら、下書きから外す */
+function setDraft(mid, did, next){
+  const k = key(mid,did), b = savedAtt(mid,did);
+  const v = { p: !!next.p, c: !!next.p && !!next.c };
+  if(b.p === v.p && b.c === v.c) delete pending[k]; else pending[k] = v;
+}
+function persistDraft(){
+  try{
+    if(draftCount()) localStorage.setItem(LS_DRAFT, JSON.stringify(pending));
+    else localStorage.removeItem(LS_DRAFT);
+  }catch(e){}
+}
+function loadDraft(){
+  try{ pending = JSON.parse(localStorage.getItem(LS_DRAFT) || "{}") || {}; }catch(e){ pending = {}; }
+}
+/* 消えたメンバー・開催日の下書きや、保存済みと同じになった下書きを掃除する */
+function prunePending(){
+  if(!state) return;
+  const mIds = {}, dIds = {};
+  state.members.forEach(m=>mIds[m.id]=1);
+  state.dates.forEach(d=>dIds[d.id]=1);
+  Object.keys(pending).forEach(k=>{
+    const i = k.indexOf("|"), mid = k.slice(0,i), did = k.slice(i+1);
+    const b = savedAtt(mid,did), v = pending[k];
+    if(!mIds[mid] || !dIds[did] || (b.p === !!v.p && b.c === !!v.c)) delete pending[k];
+  });
+  if(readOnly) pending = {};
+}
 
 /* メンバー1人分の集計 */
 function memberStats(m){
@@ -1159,6 +1248,7 @@ function visibleMembers(){
    ================================================================ */
 function render(){
   if(!state) return;
+  prunePending();
   viewsStale = false;
   applyRole();
   $("#appTitle").textContent = state.settings.title || "獅子巡行 打ち上げ出席管理";
@@ -1170,6 +1260,7 @@ function render(){
   renderDay();
   renderStats();
   renderAdmin();
+  updateSaveBar();
 }
 
 /* 絞り込みボタンの見た目。条件が効いている時は色を変えて気づけるようにする */
@@ -1209,6 +1300,8 @@ function renderGrand(){
 function fitHeader(){
   const hd = $("header.app");
   if(hd) document.documentElement.style.setProperty("--headH", hd.offsetHeight + "px");
+  const nv = $("nav.tabs");
+  if(nv) document.documentElement.style.setProperty("--navH", nv.offsetHeight + "px");
 }
 
 function fitTable(){
@@ -1216,7 +1309,9 @@ function fitTable(){
   if(!wrap || $("#view-matrix").hidden) return;
   const docTop = wrap.getBoundingClientRect().top + window.scrollY;   // ページ最上部から表までの高さ
   const navH   = $("nav.tabs").offsetHeight || 64;
-  const h = window.innerHeight - docTop - navH - 12;
+  const bar  = $("#saveBar");
+  const barH = (bar && !bar.hidden) ? bar.offsetHeight : 0;
+  const h = window.innerHeight - docTop - navH - barH - 12;
   wrap.style.maxHeight = Math.max(240, Math.round(h)) + "px";
 }
 
@@ -1247,7 +1342,7 @@ function renderMatrix(){
          (m.kana?`<span class="kana">${esc(m.kana)}</span>`:"") + `</th>`;
     ds.forEach(d=>{
       const a = att(m.id,d.id);
-      h += `<td class="cell" data-m="${esc(m.id)}" data-d="${esc(d.id)}" data-p="${a.p?1:0}" data-c="${a.c?1:0}">` +
+      h += `<td class="cell" data-m="${esc(m.id)}" data-d="${esc(d.id)}" data-p="${a.p?1:0}" data-c="${a.c?1:0}" data-draft="${isDraft(m.id,d.id)?1:0}">` +
            `<span class="mark">${a.p?"✓":""}</span>` +
            (a.p?`<span class="yen" data-yen="1">${a.c?"済":"¥"}</span>`:"") + `</td>`;
     });
@@ -1324,7 +1419,7 @@ function renderDay(){
   }else{
     h += `<ul class="entry" id="entryList">` + ms.map((m,i)=>{
       const a = att(m.id, d.id);
-      return `<li class="${a.p?(a.c?"joined":"unpaid"):""}" data-m="${esc(m.id)}">
+      return `<li class="${a.p?(a.c?"joined":"unpaid"):""}${isDraft(m.id,d.id)?" draft":""}" data-m="${esc(m.id)}">
         <span class="no">${i+1}</span>
         <span class="nm">${esc(m.name)}${m.active?"":' <span class="pill gray">退会</span>'}
           ${(m.group && m.group !== "一般")?`<small>${esc(m.group)}</small>`:""}</span>
@@ -1370,7 +1465,7 @@ function patchDayRow(mid, did){
   const li = $(`#entryList li[data-m="${mid}"]`);
   if(!li) return false;
   const a = att(mid, did);
-  li.className = a.p ? (a.c ? "joined" : "unpaid") : "";
+  li.className = (a.p ? (a.c ? "joined" : "unpaid") : "") + (isDraft(mid, did) ? " draft" : "");
   const pb = li.querySelector('[data-op="p"]'), cb = li.querySelector('[data-op="c"]');
   if(pb){ pb.className = "tgl" + (a.p?" on":""); pb.textContent = (a.p?"✓ ":"") + "参加"; }
   if(cb){ cb.className = "tgl" + (a.c?" on":(a.p?" warn":" off")); cb.textContent = (a.c?"✓ ":"") + "集金"; }
@@ -1467,15 +1562,19 @@ function renderAdmin(){
    ================================================================ */
 function pushUndo(label){
   if(readOnly) return;
-  undoSnap = { label, wire: JSON.stringify(toWire(state)) };
+  undoSnap = { label, wire: JSON.stringify(toWire(state)), pend: JSON.stringify(pending) };
   updateUndoBtn();
 }
 function doUndo(){
   if(!undoSnap) return;
   const label = undoSnap.label;
+  const changed = JSON.stringify(toWire(state)) !== undoSnap.wire;   // 保存済みの中身が変わるか
   state = fromWire(JSON.parse(undoSnap.wire));
+  try{ pending = JSON.parse(undoSnap.pend || "{}") || {}; }catch(e){ pending = {}; }
   undoSnap = null;
-  markDirty();
+  persistDraft();
+  saveCache(); render();
+  if(changed) scheduleSave();    // 下書きだけの取り消しなら、クラウドへは送らない
   updateUndoBtn();
   toast("元に戻しました（" + label + "）");
 }
@@ -1496,20 +1595,84 @@ function afterChange(label){
 function togglePresent(mid,did){
   if(!canEdit()) return;
   pushUndo("出席");
-  const k = key(mid,did), a = state.attendance[k] || {p:false,c:false};
-  a.p = !a.p;
-  if(!a.p) a.c = false;           // 不参加にしたら集金済も外す
-  state.attendance[k] = a;
+  const a = att(mid,did);
+  setDraft(mid, did, { p: !a.p, c: a.p ? false : a.c });   // 不参加にしたら集金済も外す
+  persistDraft();
   afterToggle(mid, did);
 }
 function toggleCollected(mid,did){
   if(!canEdit()) return;
-  const k = key(mid,did), a = state.attendance[k] || {p:false,c:false};
+  const a = att(mid,did);
   if(!a.p){ toast("先に「参加」を押してください"); return; }
   pushUndo("集金");
-  a.c = !a.c; state.attendance[k] = a;
+  setDraft(mid, did, { p: true, c: !a.c });
+  persistDraft();
   afterToggle(mid, did);
   if(navigator.vibrate) navigator.vibrate(12);
+}
+
+/* ---- 保存・取り消し（下書き → クラウド） ---- */
+function updateSaveBar(){
+  const n = readOnly ? 0 : draftCount();
+  const bar = $("#saveBar");
+  if(!bar) return;
+  const was = !bar.hidden;
+  bar.hidden = (n === 0);
+  document.body.classList.toggle("has-draft", n > 0);
+  $("#saveBarCnt").textContent = "未保存 " + n + "件";
+  if(was !== (n > 0)) fitTable();
+}
+function attLabel(a){ return !a.p ? "不参加" : (a.c ? "参加・集金済" : "参加・未集金"); }
+function openReview(){
+  if(!canEdit()) return;
+  const keys = Object.keys(pending);
+  if(!keys.length){ toast("保存する変更はありません"); return; }
+  // 日付ごとにまとめる
+  const byDate = {};
+  keys.forEach(k=>{
+    const i = k.indexOf("|"), mid = k.slice(0,i), did = k.slice(i+1);
+    (byDate[did] = byDate[did] || []).push(mid);
+  });
+  const mOrder = {}; sortedMembers().forEach((m,i)=>mOrder[m.id]=i);
+  let h = "";
+  state.dates.slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))).forEach(d=>{
+    const mids = byDate[d.id]; if(!mids) return;
+    mids.sort((a,b)=>(mOrder[a]||0)-(mOrder[b]||0));
+    h += `<div class="rv-date">${esc(fmtDate(d.date,"long"))}　${esc(d.venue||"")}</div><ul class="rv-list">`;
+    mids.forEach(mid=>{
+      const m = state.members.find(x=>x.id===mid);
+      h += `<li><span class="who">${esc(m ? m.name : "?")}</span>
+        <span class="chg">${attLabel(savedAtt(mid,d.id))} → <b>${attLabel(pending[key(mid,d.id)])}</b></span></li>`;
+    });
+    h += `</ul>`;
+  });
+  $("#reviewList").innerHTML = h;
+  $("#dlgReview").showModal();
+}
+function commitDraft(){
+  const n = draftCount();
+  if(!n) return;
+  pushUndo("保存");
+  Object.keys(pending).forEach(k=>{
+    const v = pending[k];
+    if(v.p || v.c) state.attendance[k] = { p: !!v.p, c: !!v.c };
+    else delete state.attendance[k];
+  });
+  pending = {};
+  persistDraft();
+  markDirty();                 // 画面を描き直し、クラウドへ送る
+  clearTimeout(saveTimer); saveTimer = null; doSave();
+  toast(n + "件を保存しました", "元に戻す", doUndo);
+}
+function discardDraft(){
+  const n = draftCount();
+  if(!n) return;
+  if(!confirm("未保存の " + n + "件 を取り消して、保存前の状態に戻します。よろしいですか？")) return;
+  pushUndo("やめる");
+  pending = {};
+  persistDraft();
+  saveCache(); render();
+  toast("未保存の変更を取り消しました", "元に戻す", doUndo);
 }
 
 /* ================================================================
@@ -1541,6 +1704,11 @@ function bindUI(){
     $(s).addEventListener("change", ()=>{ updateFilterBtn(); renderGrand(); renderMatrix(); });
   });
   $("#btnUndo").addEventListener("click", doUndo);
+  $("#btnReview").addEventListener("click", openReview);
+  $("#btnDiscard").addEventListener("click", discardDraft);
+  window.addEventListener("beforeunload", e=>{
+    if(draftCount() && !readOnly){ e.preventDefault(); e.returnValue = ""; }
+  });
   $("#btnFilter").addEventListener("click", ()=>{
     const p = $("#filterPanel"), open = p.hidden;
     p.hidden = !open;
@@ -1549,6 +1717,9 @@ function bindUI(){
     fitTable();
   });
   document.addEventListener("keydown", e=>{
+    if((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s"){   // Mac: Command+S で保存の確認
+      e.preventDefault(); if(draftCount()) openReview(); return;
+    }
     if((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z" && !e.shiftKey){
       const t = e.target.tagName;
       if(t === "INPUT" || t === "TEXTAREA") return;   // 文字入力中は邪魔しない
@@ -1627,10 +1798,11 @@ function bindUI(){
       if(allu && !confirm("この日の集金済をすべて取り消します。よろしいですか？")) return;
       pushUndo("一括集金");
       state.members.forEach(m=>{
-        const k = key(m.id,did), a = state.attendance[k];
-        if(a && a.p) a.c = !!allp;
+        const a = att(m.id, did);
+        if(a.p && a.c !== !!allp) setDraft(m.id, did, { p:true, c:!!allp });
       });
-      afterChange(allp ? "参加者を全員「集金済」にしました" : "全員「未集金」に戻しました");
+      persistDraft(); render();
+      toast(allp ? "参加者を全員「集金済」にしました（未保存）" : "全員「未集金」に戻しました（未保存）", "元に戻す", doUndo);
     }
   });
 
@@ -1732,6 +1904,7 @@ function bindUI(){
     if(!confirm("出席記録をすべて消します。メンバーと開催日は残ります。\nよろしいですか？")) return;
     pushUndo("全消去");
     state.attendance = {};
+    pending = {}; persistDraft();
     afterChange("出席記録を消去しました");
   });
   $("#btnClearAll").addEventListener("click", ()=>{
@@ -1740,6 +1913,7 @@ function bindUI(){
     if(!confirm("本当に全部消してよろしいですか？")) return;
     pushUndo("初期化");
     state = emptyState();
+    pending = {}; persistDraft();
     afterChange("すべて消しました");
   });
 }
@@ -1753,6 +1927,20 @@ function buildInviteLink(){
   if(!enc) return "";
   return location.origin + location.pathname + "#u=" + encodeURIComponent(enc);
 }
+/* アドレス欄の末尾に接続先を付けておく（合言葉は付けない）。
+   iPhoneで「ホーム画面に追加」すると、この形のアドレスが記録されるので、
+   ホーム画面から開いたときに合言葉だけ入れれば済む */
+function syncHash(){
+  const c = getConn();
+  if(!c.url) return;
+  let enc = ""; try{ enc = btoa(c.url); }catch(e){}
+  if(!enc) return;
+  const want = "#u=" + encodeURIComponent(enc);
+  if(location.hash !== want){
+    try{ history.replaceState(null, "", location.pathname + location.search + want); }catch(e){}
+  }
+}
+
 /* 招待リンクで開かれた時、そこに入っている接続先URLを取り出す */
 function urlFromHash(){
   const m = String(location.hash || "").match(/[#&]u=([^&]+)/);
@@ -1976,6 +2164,12 @@ bindDialog("#dlgBulk", ()=>{
   return true;
 });
 
+/* ---- 保存前の確認 ---- */
+bindDialog("#dlgReview", act=>{
+  if(act === "ok"){ commitDraft(); }
+  return true;
+});
+
 /* ---- 最初の設定 ---- */
 function openSetup(){
   const c = getConn();
@@ -2038,6 +2232,13 @@ function buildMatrixAoa(){
 }
 
 function exportExcel(){
+  const n = draftCount();
+  viewSaved = true;
+  try{ exportExcelBody(); } finally { viewSaved = false; }
+  // 書き出し完了の案内のあとに出す（先に出すと上書きされて見えなくなる）
+  if(n) toast("Excelを書き出しました。未保存の " + n + "件 は含まれていません", null, null, 7000);
+}
+function exportExcelBody(){
   const ds = sortedDates();
   const wb = XLSX.utils.book_new();
 
@@ -2068,6 +2269,13 @@ function exportExcel(){
 }
 
 function exportCsv(){
+  const n = draftCount();
+  viewSaved = true;
+  try{ exportCsvBody(); } finally { viewSaved = false; }
+  // 書き出し完了の案内のあとに出す（先に出すと上書きされて見えなくなる）
+  if(n) toast("CSVを書き出しました。未保存の " + n + "件 は含まれていません", null, null, 7000);
+}
+function exportCsvBody(){
   const rows = buildMatrixAoa();
   const csv = rows.map(r=>r.map(v=>{
     const s = String(v==null?"":v);
@@ -2098,6 +2306,7 @@ function importJson(file){
       if(!confirm(`バックアップを読み込みます。\nメンバー${w.members.length}名／開催日${(w.dates||[]).length}件。\n今のデータは置き換わります。よろしいですか？`)) return;
       pushUndo("JSON取込");
       state = fromWire(w);
+      pending = {}; persistDraft();
       afterChange("バックアップを読み込みました");
     }catch(e){ alert("読み込めませんでした：" + e.message); }
   };
@@ -2171,6 +2380,7 @@ function importExcel(file){
         });
       });
       state = ns;
+      pending = {}; persistDraft();
       afterChange("Excelを読み込みました（" + rows.length + "名）");
     }catch(e){ alert("読み込めませんでした：" + e.message); }
   };
