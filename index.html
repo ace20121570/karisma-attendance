@@ -31,7 +31,7 @@
   --warn-bg:#fbbf24; --warn-text:#402c00; --warn-line:#d99e00;
   --danger:#c0392b; --danger-weak:#fdecea;
   --head:#eef1f4; --shadow:0 1px 3px rgba(0,0,0,.10), 0 6px 18px rgba(0,0,0,.06);
-  --join-bg:#eefaf1; --unpaid-bg:#fff7e3; --draft:#c2410c; --no-bg:#f1f2f4; --nay:#6b7280;
+  --join-bg:#eefaf1; --unpaid-bg:#fff7e3; --draft:#c2410c; --no-bg:#f1f2f4; --nay:#6b7280; --info:#2563eb; --info-bg:#eef3ff;
   --radius:12px;
 }
 :root[data-theme="dark"]{
@@ -42,7 +42,7 @@
   --warn-bg:#a16207; --warn-text:#ffe9b3; --warn-line:#ca8a04;
   --danger:#f87171; --danger-weak:#3a1f1d;
   --head:#262a31; --shadow:0 1px 3px rgba(0,0,0,.5), 0 6px 18px rgba(0,0,0,.35);
-  --join-bg:#15251c; --unpaid-bg:#2b2411; --draft:#ea580c; --no-bg:#24272d; --nay:#6b7280;
+  --join-bg:#15251c; --unpaid-bg:#2b2411; --draft:#ea580c; --no-bg:#24272d; --nay:#6b7280; --info:#3b82f6; --info-bg:#16203a;
 }
 
 /* 素のWebサイトなので、リセットは自前で持つ。
@@ -293,6 +293,15 @@ body.readonly .tgl{cursor:default}
 /* ---- 確認（お金のかからない出欠・配布） ---- */
 ul.entry li.declined{background:var(--no-bg)}
 .tgl.nay{background:var(--nay);border-color:var(--nay);color:#fff}
+.tgl.info{background:var(--info);border-color:var(--info);color:#fff}
+ul.entry li.maybe{background:var(--unpaid-bg)}
+ul.entry li.other{background:var(--info-bg)}
+/* 選択肢が3つ以上のときは、名前の下にボタンを並べる */
+ul.entry li.multi{flex-wrap:wrap;padding-bottom:10px}
+ul.entry li.multi .ops{flex:1 0 100%;width:100%;margin:2px 0 0;padding-left:36px;
+  display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+ul.entry li.opt4 .ops{grid-template-columns:repeat(2,1fr)}
+ul.entry li.multi .tgl{min-width:0;width:100%}
 .tgl.wide{min-width:110px}
 .quick{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
 .quick .btn{min-height:70px;flex-direction:column;gap:2px;white-space:normal;text-align:center}
@@ -737,11 +746,19 @@ body.readonly .daycheck li .box{opacity:.6}
   <div class="field"><label>種類</label>
     <select id="lKind">
       <option value="check">確認（済／未）… 写真の配布、書類の受け取りなど</option>
-      <option value="rsvp">出欠（出席／欠席／未回答）… 直会・お疲れ様会など</option>
+      <option value="rsvp">選択（2〜4つから選ぶ）… 直会の出欠、係の希望など</option>
     </select>
     <span class="small muted" id="lKindNote" hidden>記録が入っているため、種類は変えられません</span>
   </div>
   <div class="field" id="lLabelField"><label>ボタンの言葉</label><input type="text" id="lLabel" placeholder="済"></div>
+  <div class="field" id="lOptsField">
+    <label>選択肢（2〜4つ）</label>
+    <input type="text" id="lOpt1" placeholder="出席">
+    <input type="text" id="lOpt2" placeholder="欠席" style="margin-top:6px">
+    <input type="text" id="lOpt3" placeholder="（例）遅れて参加　空欄なら使いません" style="margin-top:6px">
+    <input type="text" id="lOpt4" placeholder="（例）未定　空欄なら使いません" style="margin-top:6px">
+    <span class="small muted">名前の横に、この順でボタンが並びます。あとから名前を変えると、記録もその名前に変わります（上から順に置き換わります）。</span>
+  </div>
   <div class="field"><label>日付（任意）</label><input type="date" id="lDate"></div>
   <div class="field"><label>メモ（任意）</label><input type="text" id="lMemo"></div>
   <div class="field" id="lTargetField"><label>対象者</label>
@@ -843,7 +860,7 @@ body.readonly .daycheck li .box{opacity:.6}
 /* アプリの版。公開のたびに、同じフォルダの version.json と一緒に上げる。
    起動時に version.json と見比べ、新しい版が出ていれば自動で入れ替える
    （公開サイトは「10分間は手元の古いコピーを使ってよい」設定で配られるため） */
-const APP_VERSION = "2026.09.17-4";
+const APP_VERSION = "2026.09.18-1";
 
 const CONFIG = {
   GAS_URL: "",   // 例: "https://script.google.com/macros/s/XXXX/exec"
@@ -1044,14 +1061,15 @@ function fromWire(w){
   s.lists = (w.lists||[]).map((l,i)=>({
     id:String(l.id||newId("l")), name:String(l.name||""), kind: l.kind==="rsvp" ? "rsvp" : "check",
     label:String(l.label||""), date:String(l.date||""), memo:String(l.memo||""), order:Number(l.order)||i+1,
-    target: normTarget(l.target)
+    target: normTarget(l.target),
+    options: listOptions(l)
   })).filter(l=>l.name);
-  const kinds = {}; s.lists.forEach(l=>kinds[l.id]=l.kind);
+  const keysOf = {}; s.lists.forEach(l=>{ keysOf[l.id] = listOptions(l).map(o=>o.key); });
   (w.checks||[]).forEach(c=>{
     if(!c || !c.listId || !c.memberId) return;
-    const kd = kinds[String(c.listId)]; if(!kd) return;
+    const ks = keysOf[String(c.listId)]; if(!ks) return;
     const st = String(c.status||"");
-    if(kd==="rsvp" ? (st==="yes"||st==="no") : st==="done") s.checks[String(c.listId)+"|"+String(c.memberId)] = st;
+    if(ks.includes(st)) s.checks[String(c.listId)+"|"+String(c.memberId)] = st;
   });
   return s;
 }
@@ -1224,7 +1242,7 @@ function merge3(base, mine, server){
   outw.dates   = mergeList(base.dates, mine.dates, server.dates,
                            ["date","venue","fee","memo","order","target"]);
   // ---- 確認リストと記録 ----
-  outw.lists = mergeList(base.lists, mine.lists, server.lists, ["name","kind","label","date","memo","order","target"]);
+  outw.lists = mergeList(base.lists, mine.lists, server.lists, ["name","kind","label","date","memo","order","target","options"]);
   const bC = chkIndex(base), mC = chkIndex(mine), sC = chkIndex(server), ck = {};
   Object.keys(bC).forEach(k=>ck[k]=1); Object.keys(mC).forEach(k=>ck[k]=1);
   Object.keys(ck).forEach(k=>{
@@ -1450,6 +1468,8 @@ function targetText(t){
 }
 const OLD_TARGET_MSG = "対象者の設定を保存するには、Code.gs の差し替えとデプロイのやり直しが必要です";
 function targetsOld(){ return connReady() && serverApi !== null && serverApi < 3; }
+const OLD_OPT_MSG = "選択肢を増やすには、Code.gs の差し替えとデプロイのやり直しが必要です";
+function optionsOld(){ return connReady() && serverApi !== null && serverApi < 4; }
 
 /* 対象者の「コピー元」になる記録（開催日の参加者、確認の済・出席の人） */
 function copySources(excludeListId){
@@ -1460,8 +1480,9 @@ function copySources(excludeListId){
   });
   sortedLists().forEach(l=>{
     if(l.id === excludeListId) return;
-    const ids = state.members.filter(m=>{ const v = chk(l.id,m.id); return v==="done" || v==="yes"; }).map(m=>m.id);
-    const who = l.kind === "rsvp" ? "出席の人" : ((l.label||"済") + "の人");
+    const first = listOptions(l)[0];
+    const ids = state.members.filter(m=>chk(l.id,m.id) === first.key).map(m=>m.id);
+    const who = first.label + "の人";
     out.push({ key:"l:"+l.id, label:`${listTitle(l)} の${who}（${ids.length}名）`, ids });
   });
   return out;
@@ -1774,19 +1795,31 @@ function listTitle(l){
   const tag = (l.kind==="rsvp" && !/出欠/.test(l.name)) ? "（出欠）" : "";
   return (l.date ? fmtDate(l.date) + "　" : "") + l.name + tag;
 }
+/* 確認の選択肢。[{key,label}] を1〜4つ返す */
+function listOptions(l){
+  if(l && Array.isArray(l.options) && l.options.length){
+    return l.options.slice(0,4).map((o,i)=>({ key:String(o.key||("o"+(i+1))), label:String(o.label||("選択"+(i+1))) }));
+  }
+  if(l && l.kind === "rsvp") return [{key:"yes",label:"出席"},{key:"no",label:"欠席"}];
+  return [{key:"done", label:(l && l.label) || "済"}];
+}
+function noneLabel(l){ return (l && l.kind === "rsvp") ? "未回答" : "未"; }
 function chkLabel(l, v){
-  if(l.kind === "rsvp") return v==="yes" ? "出席" : (v==="no" ? "欠席" : "未回答");
-  return v==="done" ? (l.label||"済") : "未";
+  if(!v) return noneLabel(l);
+  const o = listOptions(l).find(x=>x.key === v);
+  return o ? o.label : v;
 }
 function checkStats(l){
-  let done=0, no=0, none=0;
+  const counts = {}; listOptions(l).forEach(o=>counts[o.key]=0);
+  let none = 0, total = 0;
   sortedMembers().forEach(m=>{
     const v = chk(l.id, m.id);
     if(!m.active && !v) return;
     if(!inTarget(l.target, m) && !v) return;
-    if(v==="done" || v==="yes") done++; else if(v==="no") no++; else none++;
+    total++;
+    if(v && counts[v] !== undefined) counts[v]++; else if(v) counts[v] = (counts[v]||0)+1; else none++;
   });
-  return { done, no, none, total: done+no+none };
+  return { counts, none, total };
 }
 function currentListId(){
   const sel = $("#chkSelect"), ls = sortedLists();
@@ -1796,16 +1829,16 @@ function currentListId(){
   sel.value = pick;
   return pick;
 }
+const OPT_BTN = ["on","nay","warn","info"];      // 1つ目から順の色
+const OPT_ROW = ["joined","declined","maybe","other"];
 function chkRowHtml(l, m, no){
   const v = chk(l.id, m.id);
-  const cls = (v==="done" || v==="yes") ? "joined" : (v==="no" ? "declined" : "");
-  let ops;
-  if(l.kind === "rsvp"){
-    ops = `<button type="button" class="tgl${v==="yes"?" on":""}" data-ck="yes">${v==="yes"?"✓ ":""}出席</button>` +
-          `<button type="button" class="tgl${v==="no"?" nay":""}" data-ck="no">${v==="no"?"✓ ":""}欠席</button>`;
-  }else{
-    ops = `<button type="button" class="tgl wide${v==="done"?" on":""}" data-ck="done">${v==="done"?"✓ ":""}${esc(l.label||"済")}</button>`;
-  }
+  const opts = listOptions(l);
+  const idx = opts.findIndex(o=>o.key === v);
+  const cls = (idx >= 0 ? OPT_ROW[idx] || "other" : "") + (opts.length >= 3 ? " multi opt" + opts.length : "");
+  const ops = opts.map((o,i)=>
+    `<button type="button" class="tgl${opts.length===1?" wide":""}${v===o.key?" "+(OPT_BTN[i]||"info"):""}" data-ck="${esc(o.key)}">` +
+    `${v===o.key?"✓ ":""}${esc(o.label)}</button>`).join("");
   return `<li class="${cls}${isChkDraft(l.id,m.id)?" draft":""}" data-m="${esc(m.id)}">` +
     `<span class="no">${esc(no)}</span>` +
     `<span class="nm">${esc(m.name)}${m.active?"":' <span class="pill gray">退会</span>'}${inTarget(l.target,m)?"":' <span class="pill gray">対象外</span>'}` +
@@ -1832,16 +1865,16 @@ function renderCheck(){
     </div>`;
     return;
   }
-  const isR = l.kind === "rsvp";
-  if(!isR && chkFilter === "no") chkFilter = "all";
+  const opts = listOptions(l);
+  if(chkFilter !== "all" && chkFilter !== "none" &&
+     !opts.some(o=>"k:"+o.key === chkFilter)) chkFilter = "all";
   const ms = sortedMembers().filter(m=>{
     const v = chk(l.id, m.id);
     if(!m.active && !v) return false;
     if(!inTarget(l.target, m) && !v) return false;
     if(chkQuery && !(m.name.toLowerCase().includes(chkQuery) || (m.kana||"").toLowerCase().includes(chkQuery))) return false;
-    if(chkFilter === "done" && !(v==="done" || v==="yes")) return false;
-    if(chkFilter === "no"   && v !== "no") return false;
     if(chkFilter === "none" && v) return false;
+    if(chkFilter.startsWith("k:") && v !== chkFilter.slice(2)) return false;
     return true;
   });
   let h = `<div class="card" style="padding:10px 12px">
@@ -1850,12 +1883,17 @@ function renderCheck(){
         style="min-height:44px;padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)">
     </div>
     <div class="row" style="margin-top:8px">
-      <div class="seg">
-        <button data-cf="all"  aria-pressed="${chkFilter==="all"}">全員</button>
-        <button data-cf="done" aria-pressed="${chkFilter==="done"}">${isR ? "出席" : esc(l.label||"済")}</button>
-        ${isR ? `<button data-cf="no" aria-pressed="${chkFilter==="no"}">欠席</button>` : ""}
-        <button data-cf="none" aria-pressed="${chkFilter==="none"}">${isR ? "未回答" : "未"}</button>
-      </div>
+      ${opts.length <= 2
+        ? `<div class="seg">
+            <button data-cf="all" aria-pressed="${chkFilter==="all"}">全員</button>` +
+            opts.map(o=>`<button data-cf="k:${esc(o.key)}" aria-pressed="${chkFilter==="k:"+o.key}">${esc(o.label)}</button>`).join("") +
+           `<button data-cf="none" aria-pressed="${chkFilter==="none"}">${esc(noneLabel(l))}</button>
+          </div>`
+        : `<select id="chkFilterSel" class="small" style="min-height:40px;padding:4px 8px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)">
+            <option value="all" ${chkFilter==="all"?"selected":""}>全員を表示</option>` +
+            opts.map(o=>`<option value="k:${esc(o.key)}" ${chkFilter==="k:"+o.key?"selected":""}>${esc(o.label)}の人だけ</option>`).join("") +
+           `<option value="none" ${chkFilter==="none"?"selected":""}>${esc(noneLabel(l))}の人だけ</option>
+          </select>`}
       <span class="small muted" id="chkCount"></span>
     </div>
   </div>
@@ -1873,9 +1911,9 @@ function renderCheckSummary(){
   const sub = $("#chkSub");
   if(!l || !sub) return;
   const st = checkStats(l);
-  sub.innerHTML = l.kind === "rsvp"
-    ? `出席 <b style="color:var(--accent)">${st.done}名</b>　欠席 ${st.no}名　未回答 <b>${st.none}名</b>（対象${st.total}名）`
-    : `${esc(l.label||"済")} <b style="color:var(--accent)">${st.done}名</b>　未 <b>${st.none}名</b>（対象${st.total}名）`;
+  sub.innerHTML = listOptions(l).map((o,i)=>
+      `${esc(o.label)} ` + (i===0 ? `<b style="color:var(--accent)">${st.counts[o.key]||0}名</b>` : `${st.counts[o.key]||0}名`)
+    ).join("　") + `　${esc(noneLabel(l))} <b>${st.none}名</b>（対象${st.total}名）`;
   const cnt = $("#chkCount");
   if(cnt){
     const out = state.members.filter(m=>m.active && !inTarget(l.target,m) && !chk(l.id,m.id)).length;
@@ -1910,7 +1948,11 @@ function toggleCheck(lid, mid, val){
   updateSaveBar();
   if(navigator.vibrate) navigator.vibrate(12);
 }
-function syncLabelField(){ $("#lLabelField").hidden = ($("#lKind").value === "rsvp"); }
+function syncLabelField(){
+  const isR = $("#lKind").value === "rsvp";
+  $("#lLabelField").hidden = isR;
+  $("#lOptsField").hidden  = !isR || optionsOld();
+}
 function openListDialog(id, quick){
   if(!canEdit()) return;
   if(serverOld()){ toast(OLD_API_MSG, null, null, 9000); return; }
@@ -1924,6 +1966,9 @@ function openListDialog(id, quick){
   $("#lKind").disabled = hasRec;
   $("#lKindNote").hidden = !hasRec;
   $("#lLabel").value = l ? (l.label||"") : (quick === "check" ? "配布済" : "");
+  // 選択肢（出欠など）。既存はそのまま、新規は出席／欠席を初期値に
+  const opts = l ? listOptions(l) : [{key:"o1",label:"出席"},{key:"o2",label:"欠席"}];
+  for(let i=1;i<=4;i++) $("#lOpt"+i).value = (kind === "rsvp" && opts[i-1]) ? opts[i-1].label : "";
   $("#lDate").value  = l ? (l.date||"") : todayIso();
   $("#lMemo").value  = l ? (l.memo||"") : "";
   $("#lDelete").hidden = !l;
@@ -2330,6 +2375,10 @@ function bindUI(){
       const li = b.closest("li[data-m]"); if(!li) return;
       toggleCheck($("#chkSelect").value, li.dataset.m, b.dataset.ck);
     }
+  });
+  $("#view-check").addEventListener("change", e=>{
+    if(e.target.id !== "chkFilterSel") return;
+    chkFilter = e.target.value; renderCheck();
   });
   $("#view-check").addEventListener("input", e=>{
     if(e.target.id !== "chkQ") return;
@@ -2808,11 +2857,36 @@ bindDialog("#dlgList", act=>{
   pushUndo("確認の編集");
   const kind  = $("#lKind").value === "rsvp" ? "rsvp" : "check";
   const label = kind === "check" ? ($("#lLabel").value.trim() || "済") : "";
+  const prevList = editingListId ? state.lists.find(x=>x.id===editingListId) : null;
+  const prevOpts = prevList ? listOptions(prevList) : [];
+  let options;
+  if(kind === "check"){
+    options = [{ key:(prevOpts[0] && prevList.kind==="check" ? prevOpts[0].key : "done"), label }];
+  }else if(optionsOld()){
+    options = prevOpts.length >= 2 ? prevOpts : [{key:"yes",label:"出席"},{key:"no",label:"欠席"}];
+  }else{
+    const labels = [1,2,3,4].map(i=>$("#lOpt"+i).value.trim()).filter(Boolean);
+    if(labels.length < 2){ toast("選択肢を2つ以上入れてください"); return false; }
+    if(new Set(labels).size !== labels.length){ toast("同じ名前の選択肢があります"); return false; }
+    options = labels.map((lab,i)=>({ key:(prevOpts[i] && prevList.kind==="rsvp") ? prevOpts[i].key : ("o"+(i+1)+"-"+Math.random().toString(36).slice(2,6)), label:lab }));
+    // 減らした選択肢に記録があれば確認して消す
+    if(prevList){
+      const keep = new Set(options.map(o=>o.key));
+      const lost = prevOpts.filter(o=>!keep.has(o.key));
+      if(lost.length){
+        const hit = Object.keys(state.checks).filter(k=>k.startsWith(prevList.id+"|") && !keep.has(state.checks[k]));
+        if(hit.length && !confirm(`「${lost.map(o=>o.label).join("・")}」を減らします。\nその記録 ${hit.length}件 も消えます。よろしいですか？`)) return false;
+        hit.forEach(k=>delete state.checks[k]);
+        Object.keys(pendingChk).forEach(k=>{ if(k.startsWith(prevList.id+"|") && pendingChk[k] && !keep.has(pendingChk[k])) delete pendingChk[k]; });
+        persistDraft();
+      }
+    }
+  }
   const date  = $("#lDate").value || "";
   const memo  = $("#lMemo").value.trim();
   if(editingListId){
     const l = state.lists.find(x=>x.id===editingListId);
-    if(l) Object.assign(l, { name, kind: $("#lKind").disabled ? l.kind : kind, label, date, memo });
+    if(l) Object.assign(l, { name, kind: $("#lKind").disabled ? l.kind : kind, label, date, memo, options });
     wantListId = editingListId;
     afterChange("確認を更新しました");
   }else{
@@ -2820,7 +2894,7 @@ bindDialog("#dlgList", act=>{
     const id = newId("l");
     const src = $("#lTargetFrom").value ? copySources(null).find(o=>o.key === $("#lTargetFrom").value) : null;
     const target = src ? { mode:"custom", members: src.ids.slice() } : { mode:"all" };
-    state.lists.push({ id, name, kind, label, date, memo, order: maxo+1, target });
+    state.lists.push({ id, name, kind, label, date, memo, order: maxo+1, target, options });
     wantListId = id; chkFilter = "all"; chkQuery = "";
     afterChange("「" + name + "」を作りました");
   }
@@ -3082,7 +3156,7 @@ function exportExcelBody(){
     });
     a4.push(["集計",""].concat(ls.map(l=>{
       const st = checkStats(l);
-      return l.kind==="rsvp" ? `出席${st.done}／欠席${st.no}／未回答${st.none}` : `${l.label||"済"}${st.done}／未${st.none}`;
+      return listOptions(l).map(o=>`${o.label}${st.counts[o.key]||0}`).join("／") + `／${noneLabel(l)}${st.none}`;
     })));
     const ws4 = XLSX.utils.aoa_to_sheet(a4);
     ws4["!cols"] = [{wch:16},{wch:7}].concat(ls.map(()=>({wch:18})));
