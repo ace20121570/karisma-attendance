@@ -31,7 +31,7 @@
   --warn-bg:#fbbf24; --warn-text:#402c00; --warn-line:#d99e00;
   --danger:#c0392b; --danger-weak:#fdecea;
   --head:#eef1f4; --shadow:0 1px 3px rgba(0,0,0,.10), 0 6px 18px rgba(0,0,0,.06);
-  --join-bg:#eefaf1; --unpaid-bg:#fff7e3; --draft:#c2410c;
+  --join-bg:#eefaf1; --unpaid-bg:#fff7e3; --draft:#c2410c; --no-bg:#f1f2f4; --nay:#6b7280;
   --radius:12px;
 }
 :root[data-theme="dark"]{
@@ -42,7 +42,7 @@
   --warn-bg:#a16207; --warn-text:#ffe9b3; --warn-line:#ca8a04;
   --danger:#f87171; --danger-weak:#3a1f1d;
   --head:#262a31; --shadow:0 1px 3px rgba(0,0,0,.5), 0 6px 18px rgba(0,0,0,.35);
-  --join-bg:#15251c; --unpaid-bg:#2b2411; --draft:#ea580c;
+  --join-bg:#15251c; --unpaid-bg:#2b2411; --draft:#ea580c; --no-bg:#24272d; --nay:#6b7280;
 }
 
 /* 素のWebサイトなので、リセットは自前で持つ。
@@ -123,7 +123,7 @@ header.app h1{margin:0;font-size:16px;font-weight:700;flex:1 1 auto;
 
 nav.tabs{
   position:fixed;left:0;right:0;bottom:0;z-index:70;
-  display:grid;grid-template-columns:repeat(4,1fr);
+  display:grid;grid-template-columns:repeat(5,1fr);
   background:var(--panel);border-top:1px solid var(--line);
   padding-bottom:env(safe-area-inset-bottom);
 }
@@ -244,21 +244,21 @@ ul.sortable li .nm{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellip
 ul.sortable li .nm small{display:block;color:var(--muted);font-size:11px}
 
 /* ---- 日ごとの入力画面（名前の横で押す） ---- */
-#daySticky{
+#daySticky,#chkSticky{
   position:sticky;top:var(--headH,52px);z-index:40;
   background:var(--panel);border:1px solid var(--line);border-radius:12px;
   padding:8px 10px;margin:10px 0;box-shadow:var(--shadow)
 }
-#daySticky .dnav{min-width:46px;min-height:46px;padding:0 10px;font-size:16px;flex:none}
-#daySticky select{
+#daySticky .dnav,#chkSticky .dnav{min-width:46px;min-height:46px;padding:0 10px;font-size:16px;flex:none}
+#daySticky select,#chkSticky select{
   min-height:46px;padding:6px 8px;border:1px solid var(--line);border-radius:10px;
   background:var(--panel2);font-size:15px;font-weight:700;width:100%
 }
-#daySticky .dsub{
+#daySticky .dsub,#chkSticky .dsub{
   margin-top:6px;font-size:12px;color:var(--muted);line-height:1.5
 }
-#daySticky .dsub b{color:var(--danger)}
-#daySticky .dsub .ok{color:var(--accent);font-weight:700}
+#daySticky .dsub b,#chkSticky .dsub b{color:var(--danger)}
+#daySticky .dsub .ok,#chkSticky .dsub .ok{color:var(--accent);font-weight:700}
 
 ul.entry{list-style:none;margin:0;padding:0}
 ul.entry li{
@@ -289,6 +289,14 @@ ul.entry li .ops{display:flex;gap:6px;flex:none}
 .tgl.warn{background:var(--warn-bg);border-color:var(--warn-line);color:var(--warn-text)}
 .tgl.off{opacity:.4}
 body.readonly .tgl{cursor:default}
+
+/* ---- 確認（お金のかからない出欠・配布） ---- */
+ul.entry li.declined{background:var(--no-bg)}
+.tgl.nay{background:var(--nay);border-color:var(--nay);color:#fff}
+.tgl.wide{min-width:110px}
+.quick{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.quick .btn{min-height:70px;flex-direction:column;gap:2px;white-space:normal;text-align:center}
+.quick .btn small{font-weight:400;font-size:11px;color:var(--muted)}
 
 /* 絞り込みの切り替え（全員／参加／未集金） */
 .seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
@@ -513,6 +521,27 @@ body.readonly .daycheck li .box{opacity:.6}
     <div id="dayPane"></div>
   </section>
 
+  <!-- ========== 確認（お金のかからない出欠・配布の確認） ========== -->
+  <section id="view-check" hidden>
+    <div id="chkApiWarn" class="notice warn" hidden>
+      「確認」の記録をクラウドに保存するには、<b>Code.gs の差し替えとデプロイのやり直し</b>が必要です。
+      済むまでは、確認を作ったり保存したりできません（入力・集金はこれまでどおり使えます）。
+    </div>
+    <div id="chkSticky" hidden>
+      <div class="row" style="flex-wrap:nowrap;width:100%">
+        <button class="btn dnav" id="chkPrev" title="前の確認" aria-label="前の確認">◀</button>
+        <select id="chkSelect" class="grow" aria-label="確認を選ぶ"></select>
+        <button class="btn dnav" id="chkNext" title="次の確認" aria-label="次の確認">▶</button>
+      </div>
+      <div class="dsub" id="chkSub"></div>
+    </div>
+    <div class="row editonly" id="chkTools" style="margin:0 0 4px">
+      <button class="btn sm primary" id="btnNewList">＋ 新しい確認を作る</button>
+      <button class="btn sm" id="btnEditList">この確認を編集</button>
+    </div>
+    <div id="chkPane"></div>
+  </section>
+
   <!-- ========== 集計 ========== -->
   <section id="view-stats" hidden>
     <div id="statsPane"></div>
@@ -615,6 +644,7 @@ body.readonly .daycheck li .box{opacity:.6}
 
 <nav class="tabs noprint" role="tablist">
   <button role="tab" data-view="day" aria-selected="true"><span class="ic">✏️</span>入力</button>
+  <button role="tab" data-view="check" aria-selected="false"><span class="ic">✅</span>確認</button>
   <button role="tab" data-view="matrix" aria-selected="false"><span class="ic">▦</span>一覧</button>
   <button role="tab" data-view="stats" aria-selected="false"><span class="ic">📊</span>集計</button>
   <button role="tab" data-view="admin" aria-selected="false"><span class="ic">⚙︎</span>管理</button>
@@ -665,6 +695,26 @@ body.readonly .daycheck li .box{opacity:.6}
   </div>
 </div></dialog>
 
+<dialog id="dlgList"><div class="dlg-body">
+  <h2 id="dlgListTitle">確認を作る</h2>
+  <div class="field"><label>名前</label><input type="text" id="lName" placeholder="例：写真の配布／直会の出欠"></div>
+  <div class="field"><label>種類</label>
+    <select id="lKind">
+      <option value="check">確認（済／未）… 写真の配布、書類の受け取りなど</option>
+      <option value="rsvp">出欠（出席／欠席／未回答）… 直会・お疲れ様会など</option>
+    </select>
+    <span class="small muted" id="lKindNote" hidden>記録が入っているため、種類は変えられません</span>
+  </div>
+  <div class="field" id="lLabelField"><label>ボタンの言葉</label><input type="text" id="lLabel" placeholder="済"></div>
+  <div class="field"><label>日付（任意）</label><input type="date" id="lDate"></div>
+  <div class="field"><label>メモ（任意）</label><input type="text" id="lMemo"></div>
+  <div class="dlg-foot">
+    <button type="button" class="btn danger" data-act="delete" id="lDelete">削除</button>
+    <button type="button" class="btn" data-act="cancel">やめる</button>
+    <button type="button" class="btn primary" data-act="ok">保存</button>
+  </div>
+</div></dialog>
+
 <dialog id="dlgReview"><div class="dlg-body">
   <h2>この内容で保存しますか？</h2>
   <p class="small muted" style="margin-top:0">押し間違いがないか確認してください。違っていたら「戻る」で直せます。</p>
@@ -710,6 +760,7 @@ const LS_CONN  = "karisma_conn_v1";
 const LS_THEME = "karisma_theme_v1";
 const LS_PEND  = "karisma_pending_v1";
 const LS_DRAFT = "karisma_draft_v1";   // 保存前の下書き（出席・集金）
+const LS_DRAFT_CHK = "karisma_draft_chk_v1";   // 保存前の下書き（確認）
 
 const $  = (s, r) => (r || document).querySelector(s);
 const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
@@ -730,6 +781,11 @@ let viewsStale = false;   // 他タブの表示が古くなっているか
 let readOnly   = false;   // 閲覧専用の合言葉で開いているか
 let serverRev  = null;    // サーバー側の更新回数（読んだ時点のもの）
 let baseWire   = null;    // 読んだ／保存した時点の内容。同時編集の突き合わせに使う
+let pendingChk = {};      // 確認の下書き。 "確認id|メンバーid" → "done"/"yes"/"no"/""（""は未に戻す）
+let serverApi  = null;    // サーバー(Code.gs)の版。2以上なら「確認」を保存できる
+let chkQuery   = "", chkFilter = "all", chkQTimer = null;
+let wantListId = null;    // 次の描画で選んでおく確認
+let editingListId = null;
 let pending    = {};      // 下書き。 "メンバーid|開催日id" → {p, c}（保存ボタンを押すまでクラウドに送らない）
 let viewSaved  = false;   // true の間は下書きを無視して「保存済み」だけを見る（書き出し用）
 
@@ -847,7 +903,8 @@ function unwrap(txt){
 function emptyState(){
   return {
     settings:{ defaultFee:2000, title:"獅子巡行 打ち上げ出席管理" },
-    members:[], dates:[], attendance:{}
+    members:[], dates:[], attendance:{},
+    lists:[], checks:{}          // 確認（お金のかからない出欠・配布）
   };
 }
 /* 保存用（配列）へ */
@@ -859,7 +916,14 @@ function toWire(s){
     const i = k.indexOf("|");
     att.push({ memberId:k.slice(0,i), dateId:k.slice(i+1), present:!!v.p, collected:!!v.c });
   }
-  return { settings:s.settings, members:s.members, dates:s.dates, attendance:att };
+  const checks = [];
+  for(const k in (s.checks||{})){
+    const v = s.checks[k]; if(!v) continue;
+    const i = k.indexOf("|");
+    checks.push({ listId:k.slice(0,i), memberId:k.slice(i+1), status:v });
+  }
+  return { settings:s.settings, members:s.members, dates:s.dates, attendance:att,
+           lists:s.lists||[], checks };
 }
 /* 受け取ったもの（配列）を画面用へ */
 function fromWire(w){
@@ -878,6 +942,17 @@ function fromWire(w){
   (w.attendance||[]).forEach(a=>{
     if(!a || !a.memberId || !a.dateId) return;
     s.attendance[key(String(a.memberId),String(a.dateId))] = { p:!!a.present, c:!!a.collected };
+  });
+  s.lists = (w.lists||[]).map((l,i)=>({
+    id:String(l.id||newId("l")), name:String(l.name||""), kind: l.kind==="rsvp" ? "rsvp" : "check",
+    label:String(l.label||""), date:String(l.date||""), memo:String(l.memo||""), order:Number(l.order)||i+1
+  })).filter(l=>l.name);
+  const kinds = {}; s.lists.forEach(l=>kinds[l.id]=l.kind);
+  (w.checks||[]).forEach(c=>{
+    if(!c || !c.listId || !c.memberId) return;
+    const kd = kinds[String(c.listId)]; if(!kd) return;
+    const st = String(c.status||"");
+    if(kd==="rsvp" ? (st==="yes"||st==="no") : st==="done") s.checks[String(c.listId)+"|"+String(c.memberId)] = st;
   });
   return s;
 }
@@ -1026,7 +1101,7 @@ function merge3(base, mine, server){
     settings: Object.assign({}, server.settings||{}),
     members: (server.members||[]).slice(),
     dates:   (server.dates||[]).slice(),
-    attendance: []
+    attendance: [], lists: [], checks: []
   };
   // ---- 出席記録 ----
   const bA = attIndex(base), mA = attIndex(mine), sA = attIndex(server);
@@ -1046,11 +1121,30 @@ function merge3(base, mine, server){
                            ["name","kana","group","order","active"]);
   outw.dates   = mergeList(base.dates, mine.dates, server.dates,
                            ["date","venue","fee","memo","order"]);
+  // ---- 確認リストと記録 ----
+  outw.lists = mergeList(base.lists, mine.lists, server.lists, ["name","kind","label","date","memo","order"]);
+  const bC = chkIndex(base), mC = chkIndex(mine), sC = chkIndex(server), ck = {};
+  Object.keys(bC).forEach(k=>ck[k]=1); Object.keys(mC).forEach(k=>ck[k]=1);
+  Object.keys(ck).forEach(k=>{
+    if((bC[k]||"") === (mC[k]||"")) return;     // 自分は触っていない → 相手のまま
+    if(mC[k]) sC[k] = mC[k]; else delete sC[k];
+  });
+  outw.checks = Object.keys(sC).map(k=>{
+    const i = k.indexOf("|");
+    return { listId:k.slice(0,i), memberId:k.slice(i+1), status:sC[k] };
+  });
   // ---- 設定 ----
   if(sig(base.settings,["title","defaultFee"]) !== sig(mine.settings,["title","defaultFee"])){
     outw.settings = mine.settings;
   }
   return outw;
+}
+function chkIndex(w){
+  const m = {};
+  (w && w.checks || []).forEach(c=>{
+    if(c && c.listId && c.memberId && c.status) m[String(c.listId)+"|"+String(c.memberId)] = String(c.status);
+  });
+  return m;
 }
 function attIndex(w){
   const m = {};
@@ -1130,6 +1224,7 @@ async function reload(showSeedIfEmpty){
     const fresh = fromWire(w);
     readOnly  = (w && w.role === "view");
     serverRev = Number(w && w.rev); if(!isFinite(serverRev)) serverRev = null;
+    serverApi = Number(w && w.apiVersion) || 1;
     baseWire  = JSON.stringify(toWire(fresh));
     state = fresh;
     saveCache(); applyRole(); render();
@@ -1167,7 +1262,7 @@ function att(mid,did){
 }
 function savedAtt(mid,did){ return state.attendance[key(mid,did)] || {p:false,c:false}; }
 function isDraft(mid,did){ return !!pending[key(mid,did)]; }
-function draftCount(){ return Object.keys(pending).length; }
+function draftCount(){ return Object.keys(pending).length + Object.keys(pendingChk).length; }
 
 /* 下書きに1件書く。保存済みと同じ値に戻ったら、下書きから外す */
 function setDraft(mid, did, next){
@@ -1177,12 +1272,15 @@ function setDraft(mid, did, next){
 }
 function persistDraft(){
   try{
-    if(draftCount()) localStorage.setItem(LS_DRAFT, JSON.stringify(pending));
+    if(Object.keys(pending).length) localStorage.setItem(LS_DRAFT, JSON.stringify(pending));
     else localStorage.removeItem(LS_DRAFT);
+    if(Object.keys(pendingChk).length) localStorage.setItem(LS_DRAFT_CHK, JSON.stringify(pendingChk));
+    else localStorage.removeItem(LS_DRAFT_CHK);
   }catch(e){}
 }
 function loadDraft(){
   try{ pending = JSON.parse(localStorage.getItem(LS_DRAFT) || "{}") || {}; }catch(e){ pending = {}; }
+  try{ pendingChk = JSON.parse(localStorage.getItem(LS_DRAFT_CHK) || "{}") || {}; }catch(e){ pendingChk = {}; }
 }
 /* 消えたメンバー・開催日の下書きや、保存済みと同じになった下書きを掃除する */
 function prunePending(){
@@ -1195,7 +1293,12 @@ function prunePending(){
     const b = savedAtt(mid,did), v = pending[k];
     if(!mIds[mid] || !dIds[did] || (b.p === !!v.p && b.c === !!v.c)) delete pending[k];
   });
-  if(readOnly) pending = {};
+  const lIds = {}; (state.lists||[]).forEach(l=>lIds[l.id]=1);
+  Object.keys(pendingChk).forEach(k=>{
+    const i = k.indexOf("|"), lid = k.slice(0,i), mid = k.slice(i+1);
+    if(!lIds[lid] || !mIds[mid] || (state.checks[k]||"") === pendingChk[k]) delete pendingChk[k];
+  });
+  if(readOnly){ pending = {}; pendingChk = {}; }
 }
 
 /* メンバー1人分の集計 */
@@ -1258,6 +1361,7 @@ function render(){
   renderGrand();
   renderMatrix();
   renderDay();
+  renderCheck();
   renderStats();
   renderAdmin();
   updateSaveBar();
@@ -1472,6 +1576,175 @@ function patchDayRow(mid, did){
   return true;
 }
 
+/* ================================================================
+   確認（お金のかからない出欠・配布の確認）
+   ================================================================ */
+const OLD_API_MSG = "「確認」を保存するには、Code.gs の差し替えとデプロイのやり直しが必要です";
+function serverOld(){ return connReady() && serverApi !== null && serverApi < 2; }
+function ckey(lid, mid){ return lid + "|" + mid; }
+function savedChk(lid, mid){ return state.checks[ckey(lid,mid)] || ""; }
+function chk(lid, mid){
+  const k = ckey(lid,mid);
+  if(!viewSaved && Object.prototype.hasOwnProperty.call(pendingChk, k)) return pendingChk[k];
+  return state.checks[k] || "";
+}
+function isChkDraft(lid, mid){ return Object.prototype.hasOwnProperty.call(pendingChk, ckey(lid,mid)); }
+function setChkDraft(lid, mid, v){
+  const k = ckey(lid,mid);
+  if((state.checks[k]||"") === v) delete pendingChk[k]; else pendingChk[k] = v;
+}
+function sortedLists(){ return (state.lists||[]).slice().sort((a,b)=>(b.order||0)-(a.order||0)); }   // 新しい順
+function listTitle(l){
+  const tag = (l.kind==="rsvp" && !/出欠/.test(l.name)) ? "（出欠）" : "";
+  return (l.date ? fmtDate(l.date) + "　" : "") + l.name + tag;
+}
+function chkLabel(l, v){
+  if(l.kind === "rsvp") return v==="yes" ? "出席" : (v==="no" ? "欠席" : "未回答");
+  return v==="done" ? (l.label||"済") : "未";
+}
+function checkStats(l){
+  let done=0, no=0, none=0;
+  sortedMembers().forEach(m=>{
+    const v = chk(l.id, m.id);
+    if(!m.active && !v) return;
+    if(v==="done" || v==="yes") done++; else if(v==="no") no++; else none++;
+  });
+  return { done, no, none, total: done+no+none };
+}
+function currentListId(){
+  const sel = $("#chkSelect"), ls = sortedLists();
+  const cur = wantListId || sel.value; wantListId = null;
+  sel.innerHTML = ls.map(l=>`<option value="${esc(l.id)}">${esc(listTitle(l))}</option>`).join("");
+  const pick = (cur && ls.some(l=>l.id===cur)) ? cur : (ls.length ? ls[0].id : "");
+  sel.value = pick;
+  return pick;
+}
+function chkRowHtml(l, m, no){
+  const v = chk(l.id, m.id);
+  const cls = (v==="done" || v==="yes") ? "joined" : (v==="no" ? "declined" : "");
+  let ops;
+  if(l.kind === "rsvp"){
+    ops = `<button type="button" class="tgl${v==="yes"?" on":""}" data-ck="yes">${v==="yes"?"✓ ":""}出席</button>` +
+          `<button type="button" class="tgl${v==="no"?" nay":""}" data-ck="no">${v==="no"?"✓ ":""}欠席</button>`;
+  }else{
+    ops = `<button type="button" class="tgl wide${v==="done"?" on":""}" data-ck="done">${v==="done"?"✓ ":""}${esc(l.label||"済")}</button>`;
+  }
+  return `<li class="${cls}${isChkDraft(l.id,m.id)?" draft":""}" data-m="${esc(m.id)}">` +
+    `<span class="no">${esc(no)}</span>` +
+    `<span class="nm">${esc(m.name)}${m.active?"":' <span class="pill gray">退会</span>'}` +
+    `${(m.group && m.group!=="一般")?`<small>${esc(m.group)}</small>`:""}</span>` +
+    `<span class="ops">${ops}</span></li>`;
+}
+function renderCheck(){
+  const warn = $("#chkApiWarn"); if(warn) warn.hidden = !serverOld();
+  const lid = currentListId();
+  const l = (state.lists||[]).find(x=>x.id===lid);
+  const pane = $("#chkPane");
+  $("#chkSticky").hidden = !l;
+  $("#btnEditList").hidden = !l;
+  if(!l){
+    pane.innerHTML = `<div class="card">
+      <h2>確認</h2>
+      <p class="small" style="margin-top:0">お金のかからない確認に使います。名簿は「入力」と同じメンバーです。</p>
+      <div class="quick editonly">
+        <button class="btn" data-quick="check">📷 配布の確認<small>写真を渡した人に「済」</small></button>
+        <button class="btn" data-quick="rsvp">🍶 出欠の確認<small>直会・お疲れ様会など</small></button>
+      </div>
+      <p class="small muted" style="margin-bottom:0">まだ確認がありません。上のどちらかを押して作ってください。</p>
+    </div>`;
+    return;
+  }
+  const isR = l.kind === "rsvp";
+  if(!isR && chkFilter === "no") chkFilter = "all";
+  const ms = sortedMembers().filter(m=>{
+    const v = chk(l.id, m.id);
+    if(!m.active && !v) return false;
+    if(chkQuery && !(m.name.toLowerCase().includes(chkQuery) || (m.kana||"").toLowerCase().includes(chkQuery))) return false;
+    if(chkFilter === "done" && !(v==="done" || v==="yes")) return false;
+    if(chkFilter === "no"   && v !== "no") return false;
+    if(chkFilter === "none" && v) return false;
+    return true;
+  });
+  let h = `<div class="card" style="padding:10px 12px">
+    <div class="row" style="flex-wrap:nowrap">
+      <input class="grow" id="chkQ" type="search" placeholder="氏名で探す" value="${esc(chkQuery)}"
+        style="min-height:44px;padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)">
+    </div>
+    <div class="row" style="margin-top:8px">
+      <div class="seg">
+        <button data-cf="all"  aria-pressed="${chkFilter==="all"}">全員</button>
+        <button data-cf="done" aria-pressed="${chkFilter==="done"}">${isR ? "出席" : esc(l.label||"済")}</button>
+        ${isR ? `<button data-cf="no" aria-pressed="${chkFilter==="no"}">欠席</button>` : ""}
+        <button data-cf="none" aria-pressed="${chkFilter==="none"}">${isR ? "未回答" : "未"}</button>
+      </div>
+      <span class="small muted" id="chkCount"></span>
+    </div>
+  </div>
+  <div class="card" style="padding:6px 10px">`;
+  if(l.memo) h += `<p class="small muted" style="margin:6px 2px">メモ：${esc(l.memo)}</p>`;
+  h += ms.length
+    ? `<ul class="entry" id="chkList">` + ms.map((m,i)=>chkRowHtml(l, m, i+1)).join("") + `</ul>`
+    : `<p class="muted" style="padding:16px 6px">該当する人がいません。</p>`;
+  h += `</div><div style="height:24px"></div>`;
+  pane.innerHTML = h;
+  renderCheckSummary();
+}
+function renderCheckSummary(){
+  const l = (state.lists||[]).find(x=>x.id === $("#chkSelect").value);
+  const sub = $("#chkSub");
+  if(!l || !sub) return;
+  const st = checkStats(l);
+  sub.innerHTML = l.kind === "rsvp"
+    ? `出席 <b style="color:var(--accent)">${st.done}名</b>　欠席 ${st.no}名　未回答 <b>${st.none}名</b>`
+    : `${esc(l.label||"済")} <b style="color:var(--accent)">${st.done}名</b>　未 <b>${st.none}名</b>（全${st.total}名）`;
+  const cnt = $("#chkCount");
+  if(cnt) cnt.textContent = document.querySelectorAll("#chkList li").length + "名を表示中";
+  const ls = sortedLists(), i = ls.findIndex(x=>x.id===l.id);
+  $("#chkPrev").disabled = (i <= 0);
+  $("#chkNext").disabled = (i < 0 || i >= ls.length-1);
+}
+function patchChkRow(lid, mid){
+  const li = $(`#chkList li[data-m="${mid}"]`); if(!li) return false;
+  const l = state.lists.find(x=>x.id===lid), m = state.members.find(x=>x.id===mid);
+  if(!l || !m) return false;
+  const no = (li.querySelector(".no") || {}).textContent || "";
+  const tmp = document.createElement("ul");
+  tmp.innerHTML = chkRowHtml(l, m, no);
+  li.replaceWith(tmp.firstElementChild);
+  return true;
+}
+/* 名前の横のボタン。同じボタンをもう一度押すと「未」に戻る */
+function toggleCheck(lid, mid, val){
+  if(!canEdit()) return;
+  const next = (chk(lid,mid) === val) ? "" : val;
+  pushUndo("確認");
+  setChkDraft(lid, mid, next);
+  persistDraft();
+  if(patchChkRow(lid, mid)) renderCheckSummary(); else renderCheck();
+  updateSaveBar();
+  if(navigator.vibrate) navigator.vibrate(12);
+}
+function syncLabelField(){ $("#lLabelField").hidden = ($("#lKind").value === "rsvp"); }
+function openListDialog(id, quick){
+  if(!canEdit()) return;
+  if(serverOld()){ toast(OLD_API_MSG, null, null, 9000); return; }
+  editingListId = id || null;
+  const l = id ? state.lists.find(x=>x.id===id) : null;
+  const kind = l ? l.kind : (quick === "rsvp" ? "rsvp" : "check");
+  $("#dlgListTitle").textContent = l ? "確認を編集" : "確認を作る";
+  $("#lName").value  = l ? l.name : (quick === "rsvp" ? "直会の出欠" : (quick === "check" ? "写真の配布" : ""));
+  $("#lKind").value  = kind;
+  const hasRec = !!l && Object.keys(state.checks).some(k=>k.startsWith(l.id+"|"));
+  $("#lKind").disabled = hasRec;
+  $("#lKindNote").hidden = !hasRec;
+  $("#lLabel").value = l ? (l.label||"") : (quick === "check" ? "配布済" : "");
+  $("#lDate").value  = l ? (l.date||"") : todayIso();
+  $("#lMemo").value  = l ? (l.memo||"") : "";
+  $("#lDelete").hidden = !l;
+  syncLabelField();
+  $("#dlgList").showModal();
+}
+
 function renderStats(){
   const ms = sortedMembers(), ds = sortedDates();
   let h = "";
@@ -1562,7 +1835,7 @@ function renderAdmin(){
    ================================================================ */
 function pushUndo(label){
   if(readOnly) return;
-  undoSnap = { label, wire: JSON.stringify(toWire(state)), pend: JSON.stringify(pending) };
+  undoSnap = { label, wire: JSON.stringify(toWire(state)), pend: JSON.stringify(pending), pendc: JSON.stringify(pendingChk) };
   updateUndoBtn();
 }
 function doUndo(){
@@ -1571,6 +1844,7 @@ function doUndo(){
   const changed = JSON.stringify(toWire(state)) !== undoSnap.wire;   // 保存済みの中身が変わるか
   state = fromWire(JSON.parse(undoSnap.wire));
   try{ pending = JSON.parse(undoSnap.pend || "{}") || {}; }catch(e){ pending = {}; }
+  try{ pendingChk = JSON.parse(undoSnap.pendc || "{}") || {}; }catch(e){ pendingChk = {}; }
   undoSnap = null;
   persistDraft();
   saveCache(); render();
@@ -1625,8 +1899,8 @@ function updateSaveBar(){
 function attLabel(a){ return !a.p ? "不参加" : (a.c ? "参加・集金済" : "参加・未集金"); }
 function openReview(){
   if(!canEdit()) return;
-  const keys = Object.keys(pending);
-  if(!keys.length){ toast("保存する変更はありません"); return; }
+  const keys = Object.keys(pending), ckeys = Object.keys(pendingChk);
+  if(!keys.length && !ckeys.length){ toast("保存する変更はありません"); return; }
   // 日付ごとにまとめる
   const byDate = {};
   keys.forEach(k=>{
@@ -1646,12 +1920,31 @@ function openReview(){
     });
     h += `</ul>`;
   });
+  // 確認（お金のかからない出欠・配布）
+  if(ckeys.length){
+    const byList = {};
+    ckeys.forEach(k=>{ const i = k.indexOf("|"); (byList[k.slice(0,i)] = byList[k.slice(0,i)] || []).push(k.slice(i+1)); });
+    sortedLists().forEach(l=>{
+      const mids = byList[l.id]; if(!mids) return;
+      mids.sort((a,b)=>(mOrder[a]||0)-(mOrder[b]||0));
+      h += `<div class="rv-date">✅ ${esc(listTitle(l))}</div><ul class="rv-list">`;
+      mids.forEach(mid=>{
+        const m = state.members.find(x=>x.id===mid);
+        h += `<li><span class="who">${esc(m ? m.name : "?")}</span>
+          <span class="chg">${esc(chkLabel(l, savedChk(l.id,mid)))} → <b>${esc(chkLabel(l, pendingChk[ckey(l.id,mid)]))}</b></span></li>`;
+      });
+      h += `</ul>`;
+    });
+    if(serverOld()) h += `<p class="notice warn small">「確認」の変更は、Code.gs を更新するまで保存されません（出席・集金だけ保存されます）。</p>`;
+  }
   $("#reviewList").innerHTML = h;
   $("#dlgReview").showModal();
 }
 function commitDraft(){
-  const n = draftCount();
-  if(!n) return;
+  const nA = Object.keys(pending).length, nC = Object.keys(pendingChk).length;
+  if(!nA && !nC) return;
+  const holdChk = nC > 0 && serverOld();     // サーバーが古いと確認は保存できない（消えないよう下書きに残す）
+  if(holdChk && !nA){ toast(OLD_API_MSG, null, null, 9000); return; }
   pushUndo("保存");
   Object.keys(pending).forEach(k=>{
     const v = pending[k];
@@ -1659,17 +1952,25 @@ function commitDraft(){
     else delete state.attendance[k];
   });
   pending = {};
+  if(!holdChk){
+    Object.keys(pendingChk).forEach(k=>{
+      const v = pendingChk[k];
+      if(v) state.checks[k] = v; else delete state.checks[k];
+    });
+    pendingChk = {};
+  }
   persistDraft();
   markDirty();                 // 画面を描き直し、クラウドへ送る
   clearTimeout(saveTimer); saveTimer = null; doSave();
-  toast(n + "件を保存しました", "元に戻す", doUndo);
+  if(holdChk) toast(nA + "件を保存しました。「確認」の " + nC + "件 は Code.gs の更新が必要なため未保存です", "元に戻す", doUndo, 9000);
+  else toast((nA + nC) + "件を保存しました", "元に戻す", doUndo);
 }
 function discardDraft(){
   const n = draftCount();
   if(!n) return;
   if(!confirm("未保存の " + n + "件 を取り消して、保存前の状態に戻します。よろしいですか？")) return;
   pushUndo("やめる");
-  pending = {};
+  pending = {}; pendingChk = {};
   persistDraft();
   saveCache(); render();
   toast("未保存の変更を取り消しました", "元に戻す", doUndo);
@@ -1684,7 +1985,7 @@ function bindUI(){
     b.addEventListener("click", ()=>{
       currentView = b.dataset.view;
       $$("nav.tabs button").forEach(x=>x.setAttribute("aria-selected", String(x===b)));
-      ["matrix","day","stats","admin"].forEach(v=> $("#view-"+v).hidden = (v!==currentView));
+      ["matrix","day","check","stats","admin"].forEach(v=> $("#view-"+v).hidden = (v!==currentView));
       if(viewsStale) render();
       fitTable();
       window.scrollTo(0,0);
@@ -1760,6 +2061,40 @@ function bindUI(){
     const cell = e.target.closest("td.cell"); if(!cell) return;
     e.preventDefault();
     toggleCollected(cell.dataset.m, cell.dataset.d);
+  });
+
+  /* --- 確認（お金のかからない出欠・配布の確認） --- */
+  $("#chkSelect").addEventListener("change", ()=>{ renderCheck(); window.scrollTo(0,0); });
+  $("#lKind").addEventListener("change", syncLabelField);
+  $("#btnNewList").addEventListener("click", ()=> openListDialog(null, ""));
+  $("#btnEditList").addEventListener("click", ()=> openListDialog($("#chkSelect").value));
+  $("#view-check").addEventListener("click", e=>{
+    const nav = e.target.closest("#chkPrev, #chkNext");
+    if(nav){
+      const ls = sortedLists(), i = ls.findIndex(x=>x.id === $("#chkSelect").value);
+      const j = i + (nav.id === "chkNext" ? 1 : -1);
+      if(j >= 0 && j < ls.length){ wantListId = ls[j].id; renderCheck(); window.scrollTo(0,0); }
+      return;
+    }
+    const q = e.target.closest("[data-quick]");
+    if(q){ openListDialog(null, q.dataset.quick); return; }
+    const seg = e.target.closest(".seg [data-cf]");
+    if(seg){ chkFilter = seg.dataset.cf; renderCheck(); return; }
+    const b = e.target.closest("[data-ck]");
+    if(b){
+      const li = b.closest("li[data-m]"); if(!li) return;
+      toggleCheck($("#chkSelect").value, li.dataset.m, b.dataset.ck);
+    }
+  });
+  $("#view-check").addEventListener("input", e=>{
+    if(e.target.id !== "chkQ") return;
+    chkQuery = e.target.value.trim().toLowerCase();
+    clearTimeout(chkQTimer);
+    chkQTimer = setTimeout(()=>{
+      renderCheck();
+      const q = $("#chkQ");
+      if(q){ q.focus(); try{ q.setSelectionRange(q.value.length, q.value.length); }catch(e2){} }
+    }, 220);
   });
 
   /* --- 入力画面（日を選んで、名前の横で押す） --- */
@@ -1913,7 +2248,7 @@ function bindUI(){
     if(!confirm("本当に全部消してよろしいですか？")) return;
     pushUndo("初期化");
     state = emptyState();
-    pending = {}; persistDraft();
+    pending = {}; pendingChk = {}; persistDraft();
     afterChange("すべて消しました");
   });
 }
@@ -2126,6 +2461,7 @@ bindDialog("#dlgMember", act=>{
     pushUndo("人削除");
     state.members = state.members.filter(x=>x.id!==editingMemberId);
     Object.keys(state.attendance).forEach(k=>{ if(k.startsWith(editingMemberId+"|")) delete state.attendance[k]; });
+    Object.keys(state.checks).forEach(k=>{ if(k.endsWith("|"+editingMemberId)) delete state.checks[k]; });
     afterChange("メンバーを削除しました");
     return true;
   }
@@ -2161,6 +2497,44 @@ bindDialog("#dlgBulk", ()=>{
     n++;
   });
   afterChange(n + "名を追加しました");
+  return true;
+});
+
+/* ---- 確認リストの作成・編集（保存を押した時点でクラウドへ） ---- */
+bindDialog("#dlgList", act=>{
+  if(!canEdit()) return true;
+  if(act === "delete"){
+    const l = state.lists.find(x=>x.id===editingListId);
+    if(!l) return true;
+    const n = Object.keys(state.checks).filter(k=>k.startsWith(l.id+"|")).length;
+    if(!confirm(`「${l.name}」を削除します。` + (n ? `記録 ${n}件 も一緒に消えます。` : "") + "\nよろしいですか？")) return false;
+    pushUndo("確認の削除");
+    state.lists = state.lists.filter(x=>x.id!==l.id);
+    Object.keys(state.checks).forEach(k=>{ if(k.startsWith(l.id+"|")) delete state.checks[k]; });
+    Object.keys(pendingChk).forEach(k=>{ if(k.startsWith(l.id+"|")) delete pendingChk[k]; });
+    persistDraft();
+    afterChange("確認を削除しました");
+    return true;
+  }
+  const name = $("#lName").value.trim();
+  if(!name){ toast("名前を入れてください"); return false; }
+  pushUndo("確認の編集");
+  const kind  = $("#lKind").value === "rsvp" ? "rsvp" : "check";
+  const label = kind === "check" ? ($("#lLabel").value.trim() || "済") : "";
+  const date  = $("#lDate").value || "";
+  const memo  = $("#lMemo").value.trim();
+  if(editingListId){
+    const l = state.lists.find(x=>x.id===editingListId);
+    if(l) Object.assign(l, { name, kind: $("#lKind").disabled ? l.kind : kind, label, date, memo });
+    wantListId = editingListId;
+    afterChange("確認を更新しました");
+  }else{
+    const maxo = state.lists.reduce((a,b)=>Math.max(a, b.order||0), 0);
+    const id = newId("l");
+    state.lists.push({ id, name, kind, label, date, memo, order: maxo+1 });
+    wantListId = id; chkFilter = "all"; chkQuery = "";
+    afterChange("「" + name + "」を作りました");
+  }
   return true;
 });
 
@@ -2264,6 +2638,22 @@ function exportExcelBody(){
   ws3["!cols"]=[{wch:16},{wch:14},{wch:8},{wch:6},{wch:8},{wch:11},{wch:11},{wch:11},{wch:7}];
   XLSX.utils.book_append_sheet(wb, ws3, "個人別");
 
+  // シート4：確認（お金のかからない出欠・配布）
+  const ls = sortedLists().slice().reverse();     // 古い順
+  if(ls.length){
+    const a4 = [["氏名","区分"].concat(ls.map(listTitle))];
+    sortedMembers().forEach(m=>{
+      a4.push([m.name, m.group||""].concat(ls.map(l=>{ const v = chk(l.id,m.id); return v ? chkLabel(l,v) : ""; })));
+    });
+    a4.push(["集計",""].concat(ls.map(l=>{
+      const st = checkStats(l);
+      return l.kind==="rsvp" ? `出席${st.done}／欠席${st.no}／未回答${st.none}` : `${l.label||"済"}${st.done}／未${st.none}`;
+    })));
+    const ws4 = XLSX.utils.aoa_to_sheet(a4);
+    ws4["!cols"] = [{wch:16},{wch:7}].concat(ls.map(()=>({wch:18})));
+    XLSX.utils.book_append_sheet(wb, ws4, "確認");
+  }
+
   XLSX.writeFile(wb, "カリスマリスト_" + stamp() + ".xlsx");
   toast("Excelを書き出しました");
 }
@@ -2306,7 +2696,7 @@ function importJson(file){
       if(!confirm(`バックアップを読み込みます。\nメンバー${w.members.length}名／開催日${(w.dates||[]).length}件。\n今のデータは置き換わります。よろしいですか？`)) return;
       pushUndo("JSON取込");
       state = fromWire(w);
-      pending = {}; persistDraft();
+      pending = {}; pendingChk = {}; persistDraft();
       afterChange("バックアップを読み込みました");
     }catch(e){ alert("読み込めませんでした：" + e.message); }
   };
@@ -2357,6 +2747,7 @@ function importExcel(file){
       pushUndo("Excel取込");
       const ns = emptyState();
       ns.settings = Object.assign({}, state.settings);
+      ns.lists = (state.lists||[]).slice();   // 確認の項目は残す（メンバーが入れ替わるため記録は消える）
       const fee = state.settings.defaultFee || 2000;
       dateCols.forEach((d,i)=> ns.dates.push({id:newId("d"), date:d.iso, venue:"カリスマ", fee, memo:"", order:i+1}));
       // 同じ氏名が複数ある場合（例：「学生」が11行）は見分けがつくよう連番を振る
@@ -2380,7 +2771,7 @@ function importExcel(file){
         });
       });
       state = ns;
-      pending = {}; persistDraft();
+      pending = {}; pendingChk = {}; persistDraft();
       afterChange("Excelを読み込みました（" + rows.length + "名）");
     }catch(e){ alert("読み込めませんでした：" + e.message); }
   };
