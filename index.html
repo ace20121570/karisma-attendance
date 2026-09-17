@@ -488,6 +488,10 @@ body.readonly .daycheck li .box{opacity:.6}
 
 <main>
   <div id="printTitle"></div>
+  <div id="updBanner" class="notice noprint" hidden style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <span style="flex:1 1 auto">🔄 <b>新しい版のアプリがあります。</b>入力中の下書きは消えません。</span>
+    <button type="button" class="btn sm primary" id="btnUpdate">更新する</button>
+  </div>
   <div id="roBanner" class="notice" hidden>👀 <b>閲覧専用モードです。</b>記録の変更はできません（見るだけの合言葉で開いています）。</div>
 
   <!-- ========== 一覧（マトリクス） ========== -->
@@ -621,6 +625,7 @@ body.readonly .daycheck li .box{opacity:.6}
 
     <div class="card">
       <h2>接続先（クラウド保存）</h2>
+      <p class="small muted" style="margin-top:0">アプリの版：<b id="appVer"></b></p>
       <div class="field">
         <label>Apps Script ウェブアプリのURL</label>
         <input id="setUrl" type="url" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
@@ -835,6 +840,11 @@ body.readonly .daycheck li .box{opacity:.6}
    ================================================================ */
 
 /* ---- 接続先をファイルに直書きしたい場合はここに書く（空ならアプリ内で設定） ---- */
+/* アプリの版。公開のたびに、同じフォルダの version.json と一緒に上げる。
+   起動時に version.json と見比べ、新しい版が出ていれば自動で入れ替える
+   （公開サイトは「10分間は手元の古いコピーを使ってよい」設定で配られるため） */
+const APP_VERSION = "2026.09.17-3";
+
 const CONFIG = {
   GAS_URL: "",   // 例: "https://script.google.com/macros/s/XXXX/exec"
   TOKEN:   ""    // 例: "karisma-2026-goaisatsu"
@@ -1291,6 +1301,14 @@ async function boot(){
   if(draftCount()) toast("前回の未保存の変更が " + draftCount() + "件 残っています。確認して保存してください", null, null, 7000);
 
   bindUI();
+  $("#appVer").textContent = APP_VERSION;
+  try{
+    if(sessionStorage.getItem("karisma_updated") === APP_VERSION){
+      sessionStorage.removeItem("karisma_updated");
+      setTimeout(()=>toast("新しい版（" + APP_VERSION + "）に更新しました"), 600);
+    }
+  }catch(e){}
+  checkUpdate(true);
 
   // 招待リンクで開かれた場合は、接続先URLを先に控えておく（合言葉だけ入れれば済むように）
   const invited = urlFromHash();
@@ -2185,8 +2203,10 @@ function bindUI(){
   $("#btnReview").addEventListener("click", openReview);
   $("#btnDiscard").addEventListener("click", discardDraft);
   window.addEventListener("beforeunload", e=>{
+    if(updating) return;          // 版の入れ替えでは止めない（下書きは端末に残る）
     if(draftCount() && !readOnly){ e.preventDefault(); e.returnValue = ""; }
   });
+  $("#btnUpdate").addEventListener("click", ()=> goUpdate($("#updBanner").dataset.v || ""));
   $("#btnFilter").addEventListener("click", ()=>{
     const p = $("#filterPanel"), open = p.hidden;
     p.hidden = !open;
@@ -2409,6 +2429,7 @@ function bindUI(){
   bindDragSort();
   document.addEventListener("visibilitychange", ()=>{
     if(document.visibilityState !== "visible") return;
+    checkUpdate(false);
     if(!connReady() || hasUnsaved()) return;    // 未保存があるときは触らない
     reload();
   });
@@ -2476,6 +2497,32 @@ function bindUI(){
     pending = {}; pendingChk = {}; persistDraft();
     afterChange("すべて消しました");
   });
+}
+
+/* ---- 新しい版の確認 ---- */
+let updating = false;
+async function checkUpdate(atBoot){
+  if(location.protocol === "file:") return;
+  let v = "";
+  try{
+    const r = await fetch("version.json?cb=" + Date.now(), { cache:"no-store" });
+    if(!r.ok) return;
+    v = String((await r.json()).version || "");
+  }catch(e){ return; }
+  const banner = $("#updBanner");
+  if(!v || v === APP_VERSION){ banner.hidden = true; return; }
+  // 起動した直後で、何も開いていなければ、そのまま入れ替える
+  const already = new URLSearchParams(location.search).get("v") === v;   // 入れ替え済みなのにまだ古い＝配信の反映待ち
+  const busy = $$("dialog").some(d=>d.open);
+  if(atBoot && !already && !busy){ goUpdate(v); return; }
+  banner.dataset.v = v;
+  banner.hidden = false;
+}
+function goUpdate(v){
+  updating = true;
+  try{ sessionStorage.setItem("karisma_updated", v); }catch(e){}
+  // 住所の ? の後ろを変えると、ブラウザは古いコピーを使わず取り直す。#（接続先）は残す
+  location.replace(location.pathname + "?v=" + encodeURIComponent(v || String(Date.now())) + location.hash);
 }
 
 /* ---- 招待リンク（アプリのURLに、接続先URLを付けたもの） ---- */
