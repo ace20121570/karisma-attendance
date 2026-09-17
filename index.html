@@ -298,6 +298,24 @@ ul.entry li.declined{background:var(--no-bg)}
 .quick .btn{min-height:70px;flex-direction:column;gap:2px;white-space:normal;text-align:center}
 .quick .btn small{font-weight:400;font-size:11px;color:var(--muted)}
 
+/* ---- 対象者 ---- */
+td.cell[data-out="1"]{background:var(--no-bg);cursor:not-allowed}
+td.cell[data-out="1"] .mark{color:var(--muted);font-weight:400}
+.tg-list{list-style:none;margin:6px 0 0;padding:0;max-height:42vh;overflow:auto;
+  border:1px solid var(--line);border-radius:10px;-webkit-overflow-scrolling:touch}
+.tg-list li label,.tg-grp{
+  display:flex;gap:10px;align-items:center;padding:9px 10px;min-height:48px;
+  border-bottom:1px solid var(--line);cursor:pointer
+}
+.tg-list li:last-child label{border-bottom:0}
+.tg-list input,.tg-grp input{width:22px;height:22px;flex:none}
+.tg-list .nm{flex:1 1 auto;min-width:0}
+.tg-list small{color:var(--muted)}
+.tg-grp{border:1px solid var(--line);border-radius:10px;margin-bottom:6px}
+.tg-info{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tg-info .txt{flex:1 1 auto;min-width:0;font-size:12.5px;color:var(--muted)}
+.tg-info .txt b{color:var(--text)}
+
 /* 絞り込みの切り替え（全員／参加／未集金） */
 .seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .seg button{
@@ -538,6 +556,7 @@ body.readonly .daycheck li .box{opacity:.6}
     <div class="row editonly" id="chkTools" style="margin:0 0 4px">
       <button class="btn sm primary" id="btnNewList">＋ 新しい確認を作る</button>
       <button class="btn sm" id="btnEditList">この確認を編集</button>
+      <button class="btn sm" id="btnListTarget">対象者</button>
     </div>
     <div id="chkPane"></div>
   </section>
@@ -551,7 +570,11 @@ body.readonly .daycheck li .box{opacity:.6}
   <section id="view-admin" hidden>
     <div class="card editonly">
       <h2>開催日の管理</h2>
-      <div class="row"><button class="btn primary" id="btnAddDate">＋ 開催日を追加</button></div>
+      <div class="row">
+        <button class="btn primary" id="btnAddDate">＋ 開催日を追加</button>
+        <button class="btn" id="btnBulkTarget">対象者をまとめて設定</button>
+      </div>
+      <p class="small muted" style="margin:8px 0 0" id="newDateTargetInfo"></p>
       <div id="dateList" style="margin-top:10px"></div>
     </div>
 
@@ -665,6 +688,10 @@ body.readonly .daycheck li .box{opacity:.6}
   <div class="field"><label>会場名</label><input type="text" id="dVenue" list="venues" placeholder="カリスマ"><datalist id="venues"></datalist></div>
   <div class="field"><label>一人負担金（円）</label><input type="number" id="dFee" min="0" step="100" inputmode="numeric"></div>
   <div class="field"><label>メモ（任意）</label><input type="text" id="dMemo"></div>
+  <div class="field"><label>対象者</label>
+    <div class="tg-info"><span class="txt" id="dTargetText"></span>
+      <button type="button" class="btn sm" id="dTargetBtn">変更</button></div>
+  </div>
   <div class="dlg-foot">
     <button type="button" class="btn danger" data-act="delete" id="dDelete">削除</button>
     <button type="button" class="btn" data-act="cancel">やめる</button>
@@ -708,10 +735,64 @@ body.readonly .daycheck li .box{opacity:.6}
   <div class="field" id="lLabelField"><label>ボタンの言葉</label><input type="text" id="lLabel" placeholder="済"></div>
   <div class="field"><label>日付（任意）</label><input type="date" id="lDate"></div>
   <div class="field"><label>メモ（任意）</label><input type="text" id="lMemo"></div>
+  <div class="field" id="lTargetField"><label>対象者</label>
+    <select id="lTargetFrom"></select>
+    <span class="small muted">写真配りなら「その日の参加者」を選ぶと、来た人だけが対象になります。あとから「対象者」ボタンで直せます。</span>
+  </div>
   <div class="dlg-foot">
     <button type="button" class="btn danger" data-act="delete" id="lDelete">削除</button>
     <button type="button" class="btn" data-act="cancel">やめる</button>
     <button type="button" class="btn primary" data-act="ok">保存</button>
+  </div>
+</div></dialog>
+
+<dialog id="dlgTarget"><div class="dlg-body">
+  <h2>対象者を選ぶ</h2>
+  <p class="small muted" id="tgSub" style="margin-top:0"></p>
+  <div class="seg" id="tgMode" style="margin-bottom:10px">
+    <button type="button" data-tm="all">全員</button>
+    <button type="button" data-tm="groups">区分で選ぶ</button>
+    <button type="button" data-tm="custom">1人ずつ選ぶ</button>
+  </div>
+  <div id="tgAll" class="small">有効なメンバー全員が対象です。あとから入った人も自動で対象になります。</div>
+  <div id="tgGroups" hidden>
+    <p class="small muted" style="margin-top:0">チェックした区分の人が対象です。あとから入った人も、区分で自動的に振り分けられます。</p>
+    <div id="tgGroupList"></div>
+    <p class="small muted" style="margin-bottom:0">未成年の人を外したいときは、その人たちの区分を「学生」「未成年」などにしておき、ここでチェックを外します（区分は「管理」→メンバーの編集で変えられます）。</p>
+  </div>
+  <div id="tgCustom" hidden>
+    <div class="row" style="flex-wrap:nowrap">
+      <select id="tgCopyFrom" class="grow" style="min-height:44px;padding:4px 8px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);font-size:14px"></select>
+      <button type="button" class="btn sm" id="tgCopy">この人たちにする</button>
+    </div>
+    <div class="row" id="tgQuick" style="margin-top:6px"></div>
+    <input id="tgQ" type="search" placeholder="氏名で探す"
+      style="width:100%;min-height:44px;padding:6px 10px;margin-top:6px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)">
+    <ul class="tg-list" id="tgList"></ul>
+  </div>
+  <p style="margin:10px 0 0"><b id="tgCount"></b></p>
+  <div class="dlg-foot">
+    <button type="button" class="btn" data-act="cancel">やめる</button>
+    <button type="button" class="btn primary" data-act="ok">この対象者にする</button>
+  </div>
+</div></dialog>
+
+<dialog id="dlgBulkTarget"><div class="dlg-body">
+  <h2>開催日の対象者をまとめて設定</h2>
+  <p class="small muted" style="margin-top:0">チェックした区分の人だけが、その日の参加入力の対象になります。
+    例：「学生」のチェックを外すと、学生は入力画面に出なくなります。</p>
+  <div id="btGroupList"></div>
+  <div class="field" style="margin-top:10px"><label>どの開催日に使いますか</label>
+    <select id="btScope">
+      <option value="all">すべての開催日 ＋ これから追加する開催日</option>
+      <option value="future">今日以降の開催日 ＋ これから追加する開催日</option>
+      <option value="new">これから追加する開催日だけ</option>
+    </select>
+  </div>
+  <p class="small muted" id="btNote" style="margin:0"></p>
+  <div class="dlg-foot">
+    <button type="button" class="btn" data-act="cancel">やめる</button>
+    <button type="button" class="btn primary" data-act="ok">まとめて設定する</button>
   </div>
 </div></dialog>
 
@@ -902,7 +983,7 @@ function unwrap(txt){
    ================================================================ */
 function emptyState(){
   return {
-    settings:{ defaultFee:2000, title:"獅子巡行 打ち上げ出席管理" },
+    settings:{ defaultFee:2000, title:"獅子巡行 打ち上げ出席管理", newDateTarget:{mode:"all"} },
     members:[], dates:[], attendance:{},
     lists:[], checks:{}          // 確認（お金のかからない出欠・配布）
   };
@@ -931,13 +1012,15 @@ function fromWire(w){
   if(!w) return s;
   s.settings = Object.assign(s.settings, w.settings||{});
   s.settings.defaultFee = Number(s.settings.defaultFee)||2000;
+  s.settings.newDateTarget = normTarget(s.settings.newDateTarget);
   s.members = (w.members||[]).map((m,i)=>({
     id:String(m.id||newId("m")), name:String(m.name||""), kana:String(m.kana||""),
     group:String(m.group||""), order:Number(m.order)||i+1, active:m.active!==false
   }));
   s.dates = (w.dates||[]).map((d,i)=>({
     id:String(d.id||newId("d")), date:String(d.date||""), venue:String(d.venue||"カリスマ"),
-    fee:Number(d.fee)||s.settings.defaultFee, memo:String(d.memo||""), order:Number(d.order)||i+1
+    fee:Number(d.fee)||s.settings.defaultFee, memo:String(d.memo||""), order:Number(d.order)||i+1,
+    target: normTarget(d.target)
   }));
   (w.attendance||[]).forEach(a=>{
     if(!a || !a.memberId || !a.dateId) return;
@@ -945,7 +1028,8 @@ function fromWire(w){
   });
   s.lists = (w.lists||[]).map((l,i)=>({
     id:String(l.id||newId("l")), name:String(l.name||""), kind: l.kind==="rsvp" ? "rsvp" : "check",
-    label:String(l.label||""), date:String(l.date||""), memo:String(l.memo||""), order:Number(l.order)||i+1
+    label:String(l.label||""), date:String(l.date||""), memo:String(l.memo||""), order:Number(l.order)||i+1,
+    target: normTarget(l.target)
   })).filter(l=>l.name);
   const kinds = {}; s.lists.forEach(l=>kinds[l.id]=l.kind);
   (w.checks||[]).forEach(c=>{
@@ -1000,7 +1084,10 @@ function patchCell(mid, did){
   td.dataset.p = a.p ? 1 : 0;
   td.dataset.c = a.c ? 1 : 0;
   td.dataset.draft = isDraft(mid, did) ? 1 : 0;
-  td.innerHTML = `<span class="mark">${a.p?"✓":""}</span>` +
+  const dd0 = state.dates.find(x=>x.id===did), mm0 = state.members.find(x=>x.id===mid);
+  const out0 = !a.p && dd0 && mm0 && !inTarget(dd0.target, mm0);
+  td.dataset.out = out0 ? 1 : 0;
+  td.innerHTML = `<span class="mark">${a.p?"✓":(out0?"－":"")}</span>` +
                  (a.p ? `<span class="yen" data-yen="1">${a.c?"済":"¥"}</span>` : "");
   // 行の右端（回数・負担額・未集金）
   const m = state.members.find(x=>x.id===mid);
@@ -1120,9 +1207,9 @@ function merge3(base, mine, server){
   outw.members = mergeList(base.members, mine.members, server.members,
                            ["name","kana","group","order","active"]);
   outw.dates   = mergeList(base.dates, mine.dates, server.dates,
-                           ["date","venue","fee","memo","order"]);
+                           ["date","venue","fee","memo","order","target"]);
   // ---- 確認リストと記録 ----
-  outw.lists = mergeList(base.lists, mine.lists, server.lists, ["name","kind","label","date","memo","order"]);
+  outw.lists = mergeList(base.lists, mine.lists, server.lists, ["name","kind","label","date","memo","order","target"]);
   const bC = chkIndex(base), mC = chkIndex(mine), sC = chkIndex(server), ck = {};
   Object.keys(bC).forEach(k=>ck[k]=1); Object.keys(mC).forEach(k=>ck[k]=1);
   Object.keys(ck).forEach(k=>{
@@ -1134,7 +1221,7 @@ function merge3(base, mine, server){
     return { listId:k.slice(0,i), memberId:k.slice(i+1), status:sC[k] };
   });
   // ---- 設定 ----
-  if(sig(base.settings,["title","defaultFee"]) !== sig(mine.settings,["title","defaultFee"])){
+  if(sig(base.settings,["title","defaultFee","newDateTarget"]) !== sig(mine.settings,["title","defaultFee","newDateTarget"])){
     outw.settings = mine.settings;
   }
   return outw;
@@ -1154,7 +1241,12 @@ function attIndex(w){
   return m;
 }
 function attSig(a){ return a ? (a.p?"1":"0") + (a.c?"1":"0") : "-"; }
-function sig(o, keys){ return keys.map(k=>String(o && o[k]!=null ? o[k] : "")).join("\u0001"); }
+function sig(o, keys){
+  return keys.map(k=>{
+    const v = o ? o[k] : null;
+    return v == null ? "" : (typeof v === "object" ? JSON.stringify(v) : String(v));
+  }).join("\u0001");
+}
 function mergeList(base, mine, server, keys){
   const b = {}, m = {}, seen = {};
   (base||[]).forEach(x=>b[x.id]=x);
@@ -1301,6 +1393,57 @@ function prunePending(){
   if(readOnly){ pending = {}; pendingChk = {}; }
 }
 
+/* ================================================================
+   対象者（開催日・確認ごとに、誰が対象か）
+     {mode:"all"}                        … 有効なメンバー全員
+     {mode:"groups", groups:["一般"]}    … 区分で選ぶ（あとから入った人も区分で自動判定）
+     {mode:"custom", members:[id,...]}   … 1人ずつ選ぶ
+   退会と違い、その回だけ外す。外しても記録は消さない
+   ================================================================ */
+function normTarget(t){
+  if(!t || typeof t !== "object") return { mode:"all" };
+  if(t.mode === "groups") return { mode:"groups", groups:(t.groups||[]).map(String) };
+  if(t.mode === "custom") return { mode:"custom", members:(t.members||[]).map(String) };
+  return { mode:"all" };
+}
+function inTarget(t, m){
+  if(!t || !m) return true;
+  if(t.mode === "groups") return (t.groups||[]).includes(String(m.group||""));
+  if(t.mode === "custom") return (t.members||[]).includes(String(m.id));
+  return true;
+}
+function targetMembers(t){ return state.members.filter(m=>m.active && inTarget(t, m)); }
+function groupName(g){ return g || "（区分なし）"; }
+function allGroups(){
+  const set = new Set(); state.members.forEach(m=>{ if(m.active) set.add(String(m.group||"")); });
+  return [...set].sort((a,b)=> a==="一般" ? -1 : (b==="一般" ? 1 : a.localeCompare(b,"ja")));
+}
+function targetText(t){
+  t = normTarget(t);
+  const n = targetMembers(t).length;
+  if(t.mode === "groups") return "区分：" + t.groups.map(groupName).join("・") + "（" + n + "名）";
+  if(t.mode === "custom") return "1人ずつ選択（" + n + "名）";
+  return "全員（" + n + "名）";
+}
+const OLD_TARGET_MSG = "対象者の設定を保存するには、Code.gs の差し替えとデプロイのやり直しが必要です";
+function targetsOld(){ return connReady() && serverApi !== null && serverApi < 3; }
+
+/* 対象者の「コピー元」になる記録（開催日の参加者、確認の済・出席の人） */
+function copySources(excludeListId){
+  const out = [];
+  state.dates.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).forEach(d=>{
+    const ids = state.members.filter(m=>att(m.id,d.id).p).map(m=>m.id);
+    out.push({ key:"d:"+d.id, label:`${fmtDate(d.date)} ${d.venue||""} の参加者（${ids.length}名）`, ids });
+  });
+  sortedLists().forEach(l=>{
+    if(l.id === excludeListId) return;
+    const ids = state.members.filter(m=>{ const v = chk(l.id,m.id); return v==="done" || v==="yes"; }).map(m=>m.id);
+    const who = l.kind === "rsvp" ? "出席の人" : ((l.label||"済") + "の人");
+    out.push({ key:"l:"+l.id, label:`${listTitle(l)} の${who}（${ids.length}名）`, ids });
+  });
+  return out;
+}
+
 /* メンバー1人分の集計 */
 function memberStats(m){
   let cnt=0, total=0, paid=0, unpaid=0;
@@ -1310,7 +1453,8 @@ function memberStats(m){
     cnt++; const fee = Number(d.fee)||0; total += fee;
     if(a.c) paid += fee; else unpaid += fee;
   });
-  const rate = state.dates.length ? cnt/state.dates.length : 0;
+  const eligible = state.dates.filter(d=>inTarget(d.target, m) || att(m.id,d.id).p).length;
+  const rate = eligible ? cnt/eligible : 0;
   return {cnt,total,paid,unpaid,rate};
 }
 /* 開催日1日分の集計 */
@@ -1446,8 +1590,9 @@ function renderMatrix(){
          (m.kana?`<span class="kana">${esc(m.kana)}</span>`:"") + `</th>`;
     ds.forEach(d=>{
       const a = att(m.id,d.id);
-      h += `<td class="cell" data-m="${esc(m.id)}" data-d="${esc(d.id)}" data-p="${a.p?1:0}" data-c="${a.c?1:0}" data-draft="${isDraft(m.id,d.id)?1:0}">` +
-           `<span class="mark">${a.p?"✓":""}</span>` +
+      const out = !a.p && !inTarget(d.target, m);
+      h += `<td class="cell" data-m="${esc(m.id)}" data-d="${esc(d.id)}" data-p="${a.p?1:0}" data-c="${a.c?1:0}" data-draft="${isDraft(m.id,d.id)?1:0}" data-out="${out?1:0}">` +
+           `<span class="mark">${a.p?"✓":(out?"－":"")}</span>` +
            (a.p?`<span class="yen" data-yen="1">${a.c?"済":"¥"}</span>`:"") + `</td>`;
     });
     h += `<td class="sum num">${st.cnt}</td><td class="sum num">${yen(st.total)}</td>` +
@@ -1494,6 +1639,7 @@ function renderDay(){
   const ms = sortedMembers().filter(m=>{
     const a = att(m.id, d.id);
     if(!m.active && !a.p) return false;                  // 退会者は、参加記録がある時だけ出す
+    if(!inTarget(d.target, m) && !a.p) return false;     // この日の対象外（記録がある人だけ出す）
     if(dayQuery && !(m.name.toLowerCase().includes(dayQuery) ||
                      (m.kana||"").toLowerCase().includes(dayQuery))) return false;
     if(dayFilter === "joined" && !a.p) return false;
@@ -1514,6 +1660,10 @@ function renderDay(){
       </div>
       <span class="small muted" id="dayCount"></span>
     </div>
+    <div class="tg-info" style="margin-top:8px">
+      <span class="txt">対象者：<b>${esc(targetText(d.target))}</b></span>
+      <button class="btn sm editonly" id="dayTargetBtn">対象者を変える</button>
+    </div>
   </div>`;
 
   h += `<div class="card" style="padding:6px 10px">`;
@@ -1525,7 +1675,7 @@ function renderDay(){
       const a = att(m.id, d.id);
       return `<li class="${a.p?(a.c?"joined":"unpaid"):""}${isDraft(m.id,d.id)?" draft":""}" data-m="${esc(m.id)}">
         <span class="no">${i+1}</span>
-        <span class="nm">${esc(m.name)}${m.active?"":' <span class="pill gray">退会</span>'}
+        <span class="nm">${esc(m.name)}${m.active?"":' <span class="pill gray">退会</span>'}${inTarget(d.target,m)?"":' <span class="pill gray">対象外</span>'}
           ${(m.group && m.group !== "一般")?`<small>${esc(m.group)}</small>`:""}</span>
         <span class="ops">
           <button type="button" class="tgl${a.p?" on":""}" data-op="p">${a.p?"✓ ":""}参加</button>
@@ -1553,12 +1703,15 @@ function renderDaySummary(){
   if(!d || !sub) return;
   const s = dateStats(d);
   sub.innerHTML =
-    `参加 <b style="color:var(--text)">${s.cnt}名</b>　一人 ${yen(s.fee)}　予定 ${yen(s.total)}　` +
+    `参加 <b style="color:var(--text)">${s.cnt}名</b>/対象${targetMembers(d.target).length}名　一人 ${yen(s.fee)}　予定 ${yen(s.total)}　` +
     (s.cnt === 0 ? `` :
       (s.unpaid > 0 ? `未集金 <b>${yen(s.unpaid)}</b> / ${s.cnt - s.paidCnt}名`
                     : `<span class="ok">集金ぜんぶ完了</span>`));
   const cnt = $("#dayCount");
-  if(cnt) cnt.textContent = document.querySelectorAll("#entryList li").length + "名を表示中";
+  if(cnt){
+    const out = state.members.filter(m=>m.active && !inTarget(d.target,m) && !att(m.id,d.id).p).length;
+    cnt.textContent = document.querySelectorAll("#entryList li").length + "名を表示中" + (out ? `（対象外${out}名は非表示）` : "");
+  }
   const ds = sortedDates(), i = ds.findIndex(x=>x.id===d.id);
   if($("#dayPrev")) $("#dayPrev").disabled = (i <= 0);
   if($("#dayNext")) $("#dayNext").disabled = (i < 0 || i >= ds.length-1);
@@ -1607,6 +1760,7 @@ function checkStats(l){
   sortedMembers().forEach(m=>{
     const v = chk(l.id, m.id);
     if(!m.active && !v) return;
+    if(!inTarget(l.target, m) && !v) return;
     if(v==="done" || v==="yes") done++; else if(v==="no") no++; else none++;
   });
   return { done, no, none, total: done+no+none };
@@ -1631,7 +1785,7 @@ function chkRowHtml(l, m, no){
   }
   return `<li class="${cls}${isChkDraft(l.id,m.id)?" draft":""}" data-m="${esc(m.id)}">` +
     `<span class="no">${esc(no)}</span>` +
-    `<span class="nm">${esc(m.name)}${m.active?"":' <span class="pill gray">退会</span>'}` +
+    `<span class="nm">${esc(m.name)}${m.active?"":' <span class="pill gray">退会</span>'}${inTarget(l.target,m)?"":' <span class="pill gray">対象外</span>'}` +
     `${(m.group && m.group!=="一般")?`<small>${esc(m.group)}</small>`:""}</span>` +
     `<span class="ops">${ops}</span></li>`;
 }
@@ -1642,6 +1796,7 @@ function renderCheck(){
   const pane = $("#chkPane");
   $("#chkSticky").hidden = !l;
   $("#btnEditList").hidden = !l;
+  $("#btnListTarget").hidden = !l;
   if(!l){
     pane.innerHTML = `<div class="card">
       <h2>確認</h2>
@@ -1659,6 +1814,7 @@ function renderCheck(){
   const ms = sortedMembers().filter(m=>{
     const v = chk(l.id, m.id);
     if(!m.active && !v) return false;
+    if(!inTarget(l.target, m) && !v) return false;
     if(chkQuery && !(m.name.toLowerCase().includes(chkQuery) || (m.kana||"").toLowerCase().includes(chkQuery))) return false;
     if(chkFilter === "done" && !(v==="done" || v==="yes")) return false;
     if(chkFilter === "no"   && v !== "no") return false;
@@ -1695,10 +1851,13 @@ function renderCheckSummary(){
   if(!l || !sub) return;
   const st = checkStats(l);
   sub.innerHTML = l.kind === "rsvp"
-    ? `出席 <b style="color:var(--accent)">${st.done}名</b>　欠席 ${st.no}名　未回答 <b>${st.none}名</b>`
-    : `${esc(l.label||"済")} <b style="color:var(--accent)">${st.done}名</b>　未 <b>${st.none}名</b>（全${st.total}名）`;
+    ? `出席 <b style="color:var(--accent)">${st.done}名</b>　欠席 ${st.no}名　未回答 <b>${st.none}名</b>（対象${st.total}名）`
+    : `${esc(l.label||"済")} <b style="color:var(--accent)">${st.done}名</b>　未 <b>${st.none}名</b>（対象${st.total}名）`;
   const cnt = $("#chkCount");
-  if(cnt) cnt.textContent = document.querySelectorAll("#chkList li").length + "名を表示中";
+  if(cnt){
+    const out = state.members.filter(m=>m.active && !inTarget(l.target,m) && !chk(l.id,m.id)).length;
+    cnt.textContent = document.querySelectorAll("#chkList li").length + "名を表示中" + (out ? `（対象外${out}名は非表示）` : "");
+  }
   const ls = sortedLists(), i = ls.findIndex(x=>x.id===l.id);
   $("#chkPrev").disabled = (i <= 0);
   $("#chkNext").disabled = (i < 0 || i >= ls.length-1);
@@ -1716,6 +1875,10 @@ function patchChkRow(lid, mid){
 /* 名前の横のボタン。同じボタンをもう一度押すと「未」に戻る */
 function toggleCheck(lid, mid, val){
   if(!canEdit()) return;
+  const ll = state.lists.find(x=>x.id===lid), mm = state.members.find(x=>x.id===mid);
+  if(ll && mm && !inTarget(ll.target, mm) && !chk(lid,mid)){
+    toast("この確認の対象外の人です。入れる場合は「対象者」から", null, null, 5000); return;
+  }
   const next = (chk(lid,mid) === val) ? "" : val;
   pushUndo("確認");
   setChkDraft(lid, mid, next);
@@ -1741,6 +1904,10 @@ function openListDialog(id, quick){
   $("#lDate").value  = l ? (l.date||"") : todayIso();
   $("#lMemo").value  = l ? (l.memo||"") : "";
   $("#lDelete").hidden = !l;
+  // 作るときだけ、対象者のコピー元を選べる（編集時は「対象者」ボタンで）
+  $("#lTargetField").hidden = !!l || targetsOld();
+  $("#lTargetFrom").innerHTML = `<option value="">全員（あとから変えられます）</option>` +
+    copySources(null).map(o=>`<option value="${esc(o.key)}">${esc(o.label)}</option>`).join("");
   syncLabelField();
   $("#dlgList").showModal();
 }
@@ -1804,11 +1971,13 @@ function renderStats(){
 function renderAdmin(){
   // 開催日一覧
   const ds = sortedDates();
+  const nti = $("#newDateTargetInfo");
+  if(nti) nti.innerHTML = "これから追加する開催日の対象者：<b>" + esc(targetText(state.settings.newDateTarget)) + "</b>";
   $("#dateList").innerHTML = ds.length ? `<div style="overflow-x:auto"><table class="list">
-    <thead><tr><th>日付</th><th>会場</th><th class="num">一人</th><th class="num">参加</th><th></th></tr></thead><tbody>` +
+    <thead><tr><th>日付</th><th>会場</th><th class="num">一人</th><th class="num">参加/対象</th><th></th></tr></thead><tbody>` +
     ds.map(d=>{ const s=dateStats(d);
       return `<tr><td style="white-space:nowrap">${esc(fmtDate(d.date))}</td><td>${esc(d.venue||"")}</td>
-        <td class="num">${yen(d.fee)}</td><td class="num">${s.cnt}名</td>
+        <td class="num">${yen(d.fee)}</td><td class="num" title="${esc(targetText(d.target))}">${s.cnt}/${targetMembers(d.target).length}名</td>
         <td style="text-align:right"><button class="btn sm" data-editdate="${esc(d.id)}">編集</button></td></tr>`;
     }).join("") + `</tbody></table></div>`
     : `<p class="muted small">開催日がまだありません。</p>`;
@@ -1868,6 +2037,10 @@ function afterChange(label){
    ================================================================ */
 function togglePresent(mid,did){
   if(!canEdit()) return;
+  const dd = state.dates.find(x=>x.id===did), mm = state.members.find(x=>x.id===mid);
+  if(dd && mm && !inTarget(dd.target, mm) && !att(mid,did).p){
+    toast("この日の対象外の人です。入れる場合は「対象者を変える」から", null, null, 5000); return;
+  }
   pushUndo("出席");
   const a = att(mid,did);
   setDraft(mid, did, { p: !a.p, c: a.p ? false : a.c });   // 不参加にしたら集金済も外す
@@ -2066,7 +2239,49 @@ function bindUI(){
   /* --- 確認（お金のかからない出欠・配布の確認） --- */
   $("#chkSelect").addEventListener("change", ()=>{ renderCheck(); window.scrollTo(0,0); });
   $("#lKind").addEventListener("change", syncLabelField);
+  // 「その日の参加者」を選んだら、確認の日付もその日にそろえる
+  $("#lTargetFrom").addEventListener("change", ()=>{
+    const v = $("#lTargetFrom").value;
+    if(v.startsWith("d:")){ const d = state.dates.find(x=>"d:"+x.id === v); if(d) $("#lDate").value = d.date; }
+  });
   $("#btnNewList").addEventListener("click", ()=> openListDialog(null, ""));
+  $("#btnListTarget").addEventListener("click", ()=> openListTarget($("#chkSelect").value));
+  $("#btnBulkTarget").addEventListener("click", openBulkTarget);
+  $("#dlgBulkTarget").addEventListener("change", ()=> btNote());
+  $("#dTargetBtn").addEventListener("click", ()=>{
+    const dv = $("#dDate").value;
+    openTargetDialog({
+      sub: (dv ? fmtDate(dv,"long") : "この開催日") + " の参加入力",
+      target: dateDraftTarget,
+      onSave: t=>{ dateDraftTarget = t; $("#dTargetText").innerHTML = "<b>" + esc(targetText(t)) + "</b>"; }
+    });
+  });
+  $("#dlgTarget").addEventListener("click", e=>{
+    if(!tg) return;
+    const md = e.target.closest("[data-tm]");
+    if(md){ tg.mode = md.dataset.tm; tgRender(); return; }
+    const qk = e.target.closest("[data-tgq]");
+    if(qk){
+      const k = qk.dataset.tgq;
+      if(k === "all") state.members.filter(x=>x.active).forEach(x=>tg.members.add(x.id));
+      else if(k === "none") tg.members.clear();
+      else state.members.filter(x=>String(x.group||"") === qk.dataset.g).forEach(x=>tg.members.delete(x.id));
+      tgRender(); return;
+    }
+    if(e.target.closest("#tgCopy")){
+      const src = copySources(tg.excludeListId).find(o=>o.key === $("#tgCopyFrom").value);
+      if(!src){ tgCount("コピー元を選んでください"); return; }
+      tg.members = new Set(src.ids); tgRender();
+    }
+  });
+  $("#dlgTarget").addEventListener("change", e=>{
+    if(!tg) return;
+    const g = e.target.closest("[data-tgg]");
+    if(g){ if(g.checked) tg.groups.add(g.dataset.tgg); else tg.groups.delete(g.dataset.tgg); tgCount(); return; }
+    const m = e.target.closest("[data-tgm]");
+    if(m){ if(m.checked) tg.members.add(m.dataset.tgm); else tg.members.delete(m.dataset.tgm); tgCount(); }
+  });
+  $("#tgQ").addEventListener("input", e=>{ if(!tg) return; tg.q = e.target.value.trim().toLowerCase(); tgRender(); });
   $("#btnEditList").addEventListener("click", ()=> openListDialog($("#chkSelect").value));
   $("#view-check").addEventListener("click", e=>{
     const nav = e.target.closest("#chkPrev, #chkNext");
@@ -2101,6 +2316,7 @@ function bindUI(){
   $("#daySelect").addEventListener("change", ()=>{ renderDay(); window.scrollTo(0,0); });
 
   $("#view-day").addEventListener("click", e=>{
+    if(e.target.closest("#dayTargetBtn")){ openDateTarget($("#daySelect").value); return; }
     // 日の前後移動
     const nav = e.target.closest("#dayPrev, #dayNext");
     if(nav){
@@ -2393,6 +2609,7 @@ function bindDialog(sel, handler){
 
 /* ---- 開催日 ---- */
 let editingDateId = null;
+let dateDraftTarget = { mode:"all" };
 function openDateDialog(id){
   editingDateId = id;
   const d = id ? state.dates.find(x=>x.id===id) : null;
@@ -2401,6 +2618,8 @@ function openDateDialog(id){
   $("#dVenue").value = d ? (d.venue||"") : "カリスマ";
   $("#dFee").value   = d ? d.fee : (state.settings.defaultFee||2000);
   $("#dMemo").value  = d ? (d.memo||"") : "";
+  dateDraftTarget = normTarget(d ? d.target : state.settings.newDateTarget);
+  $("#dTargetText").innerHTML = "<b>" + esc(targetText(dateDraftTarget)) + "</b>";
   $("#dDelete").hidden = !d;
   $("#dlgDate").showModal();
 }
@@ -2424,11 +2643,11 @@ bindDialog("#dlgDate", act=>{
   const memo  = $("#dMemo").value.trim();
   if(editingDateId){
     const d = state.dates.find(x=>x.id===editingDateId);
-    if(d) Object.assign(d, {date, venue, fee, memo});
+    if(d) Object.assign(d, {date, venue, fee, memo, target: normTarget(dateDraftTarget)});
     afterChange("開催日を更新しました");
   }else{
     const maxo = state.dates.reduce((a,b)=>Math.max(a,b.order||0),0);
-    state.dates.push({ id:newId("d"), date, venue, fee, memo, order:maxo+1 });
+    state.dates.push({ id:newId("d"), date, venue, fee, memo, order:maxo+1, target: normTarget(dateDraftTarget) });
     afterChange("開催日を追加しました");
   }
   return true;
@@ -2531,10 +2750,158 @@ bindDialog("#dlgList", act=>{
   }else{
     const maxo = state.lists.reduce((a,b)=>Math.max(a, b.order||0), 0);
     const id = newId("l");
-    state.lists.push({ id, name, kind, label, date, memo, order: maxo+1 });
+    const src = $("#lTargetFrom").value ? copySources(null).find(o=>o.key === $("#lTargetFrom").value) : null;
+    const target = src ? { mode:"custom", members: src.ids.slice() } : { mode:"all" };
+    state.lists.push({ id, name, kind, label, date, memo, order: maxo+1, target });
     wantListId = id; chkFilter = "all"; chkQuery = "";
     afterChange("「" + name + "」を作りました");
   }
+  return true;
+});
+
+/* ================================================================
+   対象者を選ぶダイアログ（開催日・確認で共通）
+   ================================================================ */
+let tg = null;   // 編集中の対象者 {mode, groups:Set, members:Set, onSave, excludeListId, q}
+function openTargetDialog(opt){
+  if(!canEdit()) return;
+  if(targetsOld()){ toast(OLD_TARGET_MSG, null, null, 9000); return; }
+  const t = normTarget(opt.target);
+  tg = {
+    mode: t.mode,
+    groups: new Set(t.mode === "groups" ? t.groups : allGroups()),
+    members: new Set(t.mode === "custom" ? t.members : targetMembers(t).map(m=>m.id)),   // 今の対象者から始める
+    onSave: opt.onSave, excludeListId: opt.excludeListId || null, q: ""
+  };
+  $("#tgSub").textContent = opt.sub || "";
+  $("#tgQ").value = "";
+  $("#tgCopyFrom").innerHTML = `<option value="">記録からコピー（その日の参加者など）</option>` +
+    copySources(tg.excludeListId).map(o=>`<option value="${esc(o.key)}">${esc(o.label)}</option>`).join("");
+  tgRender();
+  $("#dlgTarget").showModal();
+}
+function tgResult(){
+  if(tg.mode === "groups"){
+    const all = allGroups(), gs = all.filter(g=>tg.groups.has(g));
+    return gs.length === all.length ? { mode:"all" } : { mode:"groups", groups:gs };
+  }
+  if(tg.mode === "custom") return { mode:"custom", members:[...tg.members] };
+  return { mode:"all" };
+}
+function tgCount(msg){
+  const el = $("#tgCount");
+  el.style.color = msg ? "var(--danger)" : "";
+  el.textContent = msg || ("対象 " + targetMembers(tgResult()).length + "名");
+}
+function tgRender(){
+  $$("#tgMode [data-tm]").forEach(b=>b.setAttribute("aria-pressed", String(b.dataset.tm === tg.mode)));
+  $("#tgAll").hidden    = tg.mode !== "all";
+  $("#tgGroups").hidden = tg.mode !== "groups";
+  $("#tgCustom").hidden = tg.mode !== "custom";
+  const act = state.members.filter(m=>m.active);
+  if(tg.mode === "groups"){
+    $("#tgGroupList").innerHTML = allGroups().map(g=>{
+      const n = act.filter(m=>String(m.group||"") === g).length;
+      return `<label class="tg-grp"><input type="checkbox" data-tgg="${esc(g)}" ${tg.groups.has(g)?"checked":""}>
+        <span>${esc(groupName(g))}（${n}名）</span></label>`;
+    }).join("");
+  }
+  if(tg.mode === "custom"){
+    $("#tgQuick").innerHTML =
+      `<button type="button" class="btn sm" data-tgq="all">全員にチェック</button>` +
+      `<button type="button" class="btn sm" data-tgq="none">全部外す</button>` +
+      allGroups().map(g=>`<button type="button" class="btn sm" data-tgq="off" data-g="${esc(g)}">${esc(groupName(g))}を外す</button>`).join("");
+    const q = tg.q;
+    $("#tgList").innerHTML = sortedMembers()
+      .filter(m=>m.active || tg.members.has(m.id))
+      .filter(m=>!q || m.name.toLowerCase().includes(q) || (m.kana||"").toLowerCase().includes(q))
+      .map(m=>`<li><label><input type="checkbox" data-tgm="${esc(m.id)}" ${tg.members.has(m.id)?"checked":""}>
+        <span class="nm">${esc(m.name)}${m.active?"":' <span class="pill gray">退会</span>'}</span>
+        ${(m.group && m.group!=="一般")?`<small>${esc(m.group)}</small>`:""}</label></li>`).join("");
+  }
+  tgCount();
+}
+bindDialog("#dlgTarget", act=>{
+  if(act !== "ok" || !tg) return true;
+  const t = tgResult();
+  if(t.mode === "groups" && !t.groups.length){ tgCount("区分を1つ以上選んでください"); return false; }
+  if(t.mode === "custom" && !t.members.length){ tgCount("1人以上選んでください"); return false; }
+  const cb = tg.onSave; tg = null;
+  cb(t);
+  return true;
+});
+function openDateTarget(did){
+  const d = state.dates.find(x=>x.id===did); if(!d) return;
+  openTargetDialog({
+    sub: fmtDate(d.date,"long") + "　" + (d.venue||"") + " の参加入力",
+    target: d.target,
+    onSave: t=>{
+      pushUndo("対象者");
+      d.target = t;
+      const kept = state.members.filter(m=>!inTarget(t,m) && att(m.id,d.id).p).length;
+      afterChange("対象者を変えました" + (kept ? `（対象外にした人のうち${kept}名は参加の記録が残っています）` : ""));
+    }
+  });
+}
+function openListTarget(lid){
+  const l = state.lists.find(x=>x.id===lid); if(!l) return;
+  openTargetDialog({
+    sub: listTitle(l),
+    target: l.target, excludeListId: l.id,
+    onSave: t=>{
+      pushUndo("対象者");
+      l.target = t; wantListId = l.id;
+      const kept = state.members.filter(m=>!inTarget(t,m) && chk(l.id,m.id)).length;
+      afterChange("対象者を変えました" + (kept ? `（対象外にした人のうち${kept}名は記録が残っています）` : ""));
+    }
+  });
+}
+
+/* ---- 開催日の対象者をまとめて設定 ---- */
+function openBulkTarget(){
+  if(!canEdit()) return;
+  if(targetsOld()){ toast(OLD_TARGET_MSG, null, null, 9000); return; }
+  const cur = normTarget(state.settings.newDateTarget);
+  const act = state.members.filter(m=>m.active);
+  $("#btGroupList").innerHTML = allGroups().map(g=>{
+    const n = act.filter(m=>String(m.group||"") === g).length;
+    const on = cur.mode !== "groups" || cur.groups.includes(g);
+    return `<label class="tg-grp"><input type="checkbox" data-btg="${esc(g)}" ${on?"checked":""}>
+      <span>${esc(groupName(g))}（${n}名）</span></label>`;
+  }).join("");
+  $("#btScope").value = "all";
+  btNote();
+  $("#dlgBulkTarget").showModal();
+}
+function btResult(){
+  const all = allGroups();
+  const gs = $$("#btGroupList [data-btg]").filter(x=>x.checked).map(x=>x.dataset.btg);
+  return gs.length === all.length ? { mode:"all" } : { mode:"groups", groups:gs };
+}
+function btScopeDates(){
+  const sc = $("#btScope").value, t = todayIso();
+  if(sc === "new") return [];
+  return state.dates.filter(d=> sc === "all" || d.date >= t);
+}
+function btNote(msg){
+  const el = $("#btNote");
+  if(msg){ el.style.color = "var(--danger)"; el.textContent = msg; return; }
+  el.style.color = "";
+  const t = btResult(), ds = btScopeDates();
+  const custom = ds.filter(d=>normTarget(d.target).mode === "custom").length;
+  el.innerHTML = `対象 <b>${targetMembers(t).length}名</b>　／　${ds.length ? ds.length + "日に設定" : "既存の開催日は変えません"}` +
+    (custom ? `<br>「1人ずつ選択」にしている${custom}日も上書きされます` : "");
+}
+bindDialog("#dlgBulkTarget", act=>{
+  if(act !== "ok" || !canEdit()) return true;
+  const t = btResult();
+  if(t.mode === "groups" && !t.groups.length){ btNote("区分を1つ以上選んでください"); return false; }
+  const ds = btScopeDates();
+  pushUndo("対象者の一括設定");
+  state.settings.newDateTarget = normTarget(t);
+  ds.forEach(d=>{ d.target = normTarget(t); });
+  afterChange(ds.length ? `${ds.length}日の対象者を「${targetText(t)}」にしました`
+                        : `これから追加する開催日の対象者を「${targetText(t)}」にしました`);
   return true;
 });
 
@@ -2593,7 +2960,7 @@ function buildMatrixAoa(){
     const r = [i+1, m.name, m.kana||"", m.group||"", s.cnt, s.total];
     ds.forEach(d=>{
       const a = att(m.id,d.id);
-      r.push(a.p ? (a.c ? "○" : "△") : "");
+      r.push(a.p ? (a.c ? "○" : "△") : (inTarget(d.target, m) ? "" : "－"));
     });
     rows.push(r);
   });
@@ -2601,7 +2968,7 @@ function buildMatrixAoa(){
   const foot = ["","合計","","",g.cnt,g.total].concat(ds.map(d=>dateStats(d).cnt));
   rows.push(foot);
   rows.push([]);
-  rows.push(["","凡例","○＝参加・集金済　△＝参加・未集金　空欄＝不参加"]);
+  rows.push(["","凡例","○＝参加・集金済　△＝参加・未集金　空欄＝不参加　－＝対象外"]);
   return rows;
 }
 
@@ -2643,7 +3010,7 @@ function exportExcelBody(){
   if(ls.length){
     const a4 = [["氏名","区分"].concat(ls.map(listTitle))];
     sortedMembers().forEach(m=>{
-      a4.push([m.name, m.group||""].concat(ls.map(l=>{ const v = chk(l.id,m.id); return v ? chkLabel(l,v) : ""; })));
+      a4.push([m.name, m.group||""].concat(ls.map(l=>{ const v = chk(l.id,m.id); return v ? chkLabel(l,v) : (inTarget(l.target, m) ? "" : "－"); })));
     });
     a4.push(["集計",""].concat(ls.map(l=>{
       const st = checkStats(l);
@@ -2749,7 +3116,7 @@ function importExcel(file){
       ns.settings = Object.assign({}, state.settings);
       ns.lists = (state.lists||[]).slice();   // 確認の項目は残す（メンバーが入れ替わるため記録は消える）
       const fee = state.settings.defaultFee || 2000;
-      dateCols.forEach((d,i)=> ns.dates.push({id:newId("d"), date:d.iso, venue:"カリスマ", fee, memo:"", order:i+1}));
+      dateCols.forEach((d,i)=> ns.dates.push({id:newId("d"), date:d.iso, venue:"カリスマ", fee, memo:"", order:i+1, target:normTarget(state.settings.newDateTarget)}));
       // 同じ氏名が複数ある場合（例：「学生」が11行）は見分けがつくよう連番を振る
       const nameCount = {};
       rows.forEach(r=>{ nameCount[r.nm] = (nameCount[r.nm]||0) + 1; });
