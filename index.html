@@ -702,8 +702,12 @@ body.readonly .daycheck li .box{opacity:.6}
 <dialog id="dlgMember"><div class="dlg-body">
   <h2 id="dlgMemberTitle">メンバー</h2>
   <div class="field"><label>氏名</label><input type="text" id="mName" required></div>
-  <div class="field"><label>ふりがな（任意）</label><input type="text" id="mKana" placeholder="ほそや よしかず"></div>
-  <div class="field"><label>区分</label><input type="text" id="mGroup" list="groups" placeholder="一般"><datalist id="groups"></datalist></div>
+  <div class="field"><label>ふりがな（任意）</label><input type="text" id="mKana" placeholder="やまだ たろう"></div>
+  <div class="field"><label>区分</label>
+    <select id="mGroupSel"></select>
+    <input type="text" id="mGroup" placeholder="新しい区分の名前（例：未成年）" hidden style="margin-top:6px">
+    <datalist id="groups"></datalist>
+  </div>
   <div class="field"><label class="row" style="gap:6px"><input type="checkbox" id="mActive" style="width:18px;height:18px"> 有効（外すと退会者扱い。記録は残ります）</label></div>
   <div class="dlg-foot">
     <button type="button" class="btn danger" data-act="delete" id="mDelete">削除</button>
@@ -2239,6 +2243,11 @@ function bindUI(){
   /* --- 確認（お金のかからない出欠・配布の確認） --- */
   $("#chkSelect").addEventListener("change", ()=>{ renderCheck(); window.scrollTo(0,0); });
   $("#lKind").addEventListener("change", syncLabelField);
+  $("#mGroupSel").addEventListener("change", ()=>{
+    const isNew = $("#mGroupSel").value === "__new__";
+    $("#mGroup").hidden = !isNew;
+    if(isNew) setTimeout(()=>{ try{ $("#mGroup").focus(); }catch(e){} }, 30);
+  });
   // 「その日の参加者」を選んだら、確認の日付もその日にそろえる
   $("#lTargetFrom").addEventListener("change", ()=>{
     const v = $("#lTargetFrom").value;
@@ -2661,7 +2670,15 @@ function openMemberDialog(id){
   $("#dlgMemberTitle").textContent = m ? "メンバーを編集" : "メンバーを追加";
   $("#mName").value  = m ? m.name : "";
   $("#mKana").value  = m ? (m.kana||"") : "";
-  $("#mGroup").value = m ? (m.group||"") : "一般";
+  // 区分はプルダウンで選ぶ（文字入力の候補だと、入っている文字に合う候補しか出ないため）
+  const cur = m ? (m.group||"") : "一般";
+  const known = Array.from(new Set(["一般","学生"].concat(state.members.map(x=>x.group||"").filter(Boolean))));
+  if(cur && !known.includes(cur)) known.push(cur);
+  $("#mGroupSel").innerHTML = known.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join("") +
+    `<option value="__new__">＋ 新しい区分を作る…</option>`;
+  $("#mGroupSel").value = cur || "一般";
+  $("#mGroup").value = "";
+  $("#mGroup").hidden = true;
   $("#mActive").checked = m ? m.active !== false : true;
   $("#mDelete").hidden = !m;
   $("#dlgMember").showModal();
@@ -2687,7 +2704,10 @@ bindDialog("#dlgMember", act=>{
   const name = $("#mName").value.trim();
   if(!name){ toast("氏名を入れてください"); return false; }
   pushUndo("人編集");
-  const kana = $("#mKana").value.trim(), group = $("#mGroup").value.trim(), active = $("#mActive").checked;
+  const isNewGroup = $("#mGroupSel").value === "__new__";
+  const group = isNewGroup ? $("#mGroup").value.trim() : $("#mGroupSel").value;
+  if(isNewGroup && !group){ toast("新しい区分の名前を入れてください"); return false; }
+  const kana = $("#mKana").value.trim(), active = $("#mActive").checked;
   if(editingMemberId){
     const m = state.members.find(x=>x.id===editingMemberId);
     if(m) Object.assign(m, {name, kana, group, active});
