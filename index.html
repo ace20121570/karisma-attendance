@@ -325,6 +325,25 @@ td.cell[data-out="1"] .mark{color:var(--muted);font-weight:400}
 .tg-info .txt{flex:1 1 auto;min-width:0;font-size:12.5px;color:var(--muted)}
 .tg-info .txt b{color:var(--text)}
 
+/* ---- 集金する（払った人を選んで一括で集金済に） ---- */
+.col-open{width:100%;min-height:52px;font-size:16px;margin-bottom:8px}
+.col-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;
+  max-height:50vh;overflow:auto;-webkit-overflow-scrolling:touch;padding:2px}
+@media (min-width:640px){ .col-grid{grid-template-columns:repeat(3,1fr)} }
+.col-tile{
+  min-height:58px;border:1.5px solid var(--line);border-radius:12px;background:var(--panel2);
+  color:var(--text);font-size:16px;font-weight:600;padding:6px 8px;text-align:left;
+  display:flex;align-items:center;gap:8px;cursor:pointer;min-width:0
+}
+.col-tile .ck{
+  width:24px;height:24px;border-radius:7px;border:2px solid var(--line);flex:none;
+  display:flex;align-items:center;justify-content:center;font-size:15px;background:var(--panel)
+}
+.col-tile .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.col-tile .nm small{display:block;font-weight:400;font-size:11px;opacity:.8}
+.col-tile.sel{background:var(--ok-bg);border-color:var(--ok-bg);color:var(--ok-text)}
+.col-tile.sel .ck{border-color:#fff;background:#fff;color:var(--ok-bg)}
+
 /* 絞り込みの切り替え（全員／参加／未集金） */
 .seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .seg button{
@@ -822,6 +841,24 @@ body.readonly .daycheck li .box{opacity:.6}
   </div>
 </div></dialog>
 
+<dialog id="dlgCollect"><div class="dlg-body">
+  <h2 id="colTitle">集金する</h2>
+  <p class="small" id="colSub" style="margin-top:0"></p>
+  <p class="small muted" style="margin-top:0">払った人の名前を押して選び、最後に下のボタンで一括で集金済にします。
+    ほとんどの人が払ったときは「全員を選ぶ」→ 払っていない人だけ押して外すと早いです。</p>
+  <input id="colQ" type="search" placeholder="氏名で探す"
+    style="width:100%;min-height:44px;padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)">
+  <div class="row" style="margin:8px 0">
+    <button type="button" class="btn sm" id="colAll">全員を選ぶ</button>
+    <button type="button" class="btn sm" id="colNone">選択をはずす</button>
+  </div>
+  <div class="col-grid" id="colGrid"></div>
+  <div class="dlg-foot">
+    <button type="button" class="btn" data-act="cancel">やめる</button>
+    <button type="button" class="btn primary" data-act="ok" id="colOk">集金済にする</button>
+  </div>
+</div></dialog>
+
 <dialog id="dlgReview"><div class="dlg-body">
   <h2>この内容で保存しますか？</h2>
   <p class="small muted" style="margin-top:0">押し間違いがないか確認してください。違っていたら「戻る」で直せます。</p>
@@ -860,7 +897,7 @@ body.readonly .daycheck li .box{opacity:.6}
 /* アプリの版。公開のたびに、同じフォルダの version.json と一緒に上げる。
    起動時に version.json と見比べ、新しい版が出ていれば自動で入れ替える
    （公開サイトは「10分間は手元の古いコピーを使ってよい」設定で配られるため） */
-const APP_VERSION = "2026.09.18-4";
+const APP_VERSION = "2026.09.19-1";
 
 const CONFIG = {
   GAS_URL: "",   // 例: "https://script.google.com/macros/s/XXXX/exec"
@@ -1735,7 +1772,9 @@ function renderDay(){
     return true;
   });
 
+  const dsx = dateStats(d), unpaidN = dsx.cnt - dsx.paidCnt;
   let h = `<div class="card" style="padding:10px 12px">
+    ${unpaidN > 0 ? `<button class="btn primary col-open editonly" id="btnCollect">💴 集金する（未集金 ${unpaidN}名・${yen(dsx.unpaid)}）</button>` : ""}
     <div class="row" style="flex-wrap:nowrap">
       <input class="grow" id="dayQ" type="search" placeholder="氏名で探す" value="${esc(dayQuery)}"
         style="min-height:44px;padding:6px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)">
@@ -2403,6 +2442,18 @@ function bindUI(){
   });
   $("#btnNewList").addEventListener("click", ()=> openListDialog(null, ""));
   $("#btnListTarget").addEventListener("click", ()=> openListTarget($("#chkSelect").value));
+  $("#dlgCollect").addEventListener("click", e=>{
+    const t = e.target.closest("[data-cm]");
+    if(t){ const id = t.dataset.cm; if(colSel.has(id)) colSel.delete(id); else colSel.add(id); renderCollect(); return; }
+    if(e.target.closest("#colAll")){
+      const d = collectDay(); if(!d) return;
+      collectUnpaid(d).filter(m=>!colQ || m.name.toLowerCase().includes(colQ) || (m.kana||"").toLowerCase().includes(colQ))
+        .forEach(m=>colSel.add(m.id));
+      renderCollect(); return;
+    }
+    if(e.target.closest("#colNone")){ colSel.clear(); renderCollect(); }
+  });
+  $("#colQ").addEventListener("input", e=>{ colQ = e.target.value.trim().toLowerCase(); renderCollect(); });
   $("#btnBulkTarget").addEventListener("click", openBulkTarget);
   $("#dlgBulkTarget").addEventListener("change", ()=> btNote());
   $("#dTargetBtn").addEventListener("click", ()=>{
@@ -2478,6 +2529,7 @@ function bindUI(){
 
   $("#view-day").addEventListener("click", e=>{
     if(e.target.closest("#dayTargetBtn")){ openDateTarget($("#daySelect").value); return; }
+    if(e.target.closest("#btnCollect")){ openCollect(); return; }
     // 日の前後移動
     const nav = e.target.closest("#dayPrev, #dayNext");
     if(nav){
@@ -3149,6 +3201,50 @@ bindDialog("#dlgBulkTarget", act=>{
   ds.forEach(d=>{ d.target = normTarget(t); });
   afterChange(ds.length ? `${ds.length}日の対象者を「${targetText(t)}」にしました`
                         : `これから追加する開催日の対象者を「${targetText(t)}」にしました`);
+  return true;
+});
+
+/* ================================================================
+   集金する：未集金の人を大きな名前のタイルで並べ、払った人を選んで一括で集金済に
+   ================================================================ */
+let colSel = new Set(), colQ = "";
+function collectDay(){ return state.dates.find(x=>x.id === $("#daySelect").value); }
+function collectUnpaid(d){ return sortedMembers().filter(m=>{ const a = att(m.id, d.id); return a.p && !a.c; }); }
+function openCollect(){
+  if(!canEdit()) return;
+  const d = collectDay(); if(!d) return;
+  if(!collectUnpaid(d).length){ toast("この日は未集金の人がいません"); return; }
+  colSel = new Set(); colQ = ""; $("#colQ").value = "";
+  $("#colTitle").textContent = "集金する　" + fmtDate(d.date) + "　" + (d.venue||"");
+  renderCollect();
+  $("#dlgCollect").showModal();
+}
+function renderCollect(){
+  const d = collectDay(); if(!d) return;
+  const unpaid = collectUnpaid(d), fee = Number(d.fee)||0;
+  const ids = new Set(unpaid.map(m=>m.id));
+  colSel.forEach(id=>{ if(!ids.has(id)) colSel.delete(id); });
+  const shown = unpaid.filter(m=>!colQ || m.name.toLowerCase().includes(colQ) || (m.kana||"").toLowerCase().includes(colQ));
+  $("#colGrid").innerHTML = shown.length
+    ? shown.map(m=>`<button type="button" class="col-tile${colSel.has(m.id)?" sel":""}" data-cm="${esc(m.id)}">` +
+        `<span class="ck">${colSel.has(m.id)?"✓":""}</span>` +
+        `<span class="nm">${esc(m.name)}${(m.group && m.group!=="一般")?`<small>${esc(m.group)}</small>`:""}</span></button>`).join("")
+    : `<p class="muted small" style="grid-column:1/-1">該当する人がいません</p>`;
+  $("#colSub").innerHTML = `未集金 <b>${unpaid.length}名</b>（${yen(unpaid.length*fee)}）　／　選んだ人 <b style="color:var(--accent)">${colSel.size}名</b>（${yen(colSel.size*fee)}）`;
+  const ok = $("#colOk");
+  ok.textContent = colSel.size ? `選んだ${colSel.size}名を集金済にする（${yen(colSel.size*fee)}）` : "集金済にする";
+  ok.disabled = !colSel.size;
+}
+bindDialog("#dlgCollect", act=>{
+  if(act !== "ok") return true;
+  if(!canEdit()) return true;
+  const d = collectDay(); if(!d || !colSel.size) return false;
+  const n = colSel.size, fee = Number(d.fee)||0;
+  pushUndo("集金");
+  colSel.forEach(mid=> setDraft(mid, d.id, { p:true, c:true }));
+  persistDraft();
+  render();
+  toast(`${n}名（${yen(n*fee)}）を集金済にしました。最後に「確認して保存」を押してください`, "元に戻す", doUndo, 8000);
   return true;
 });
 
