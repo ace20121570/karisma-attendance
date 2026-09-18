@@ -860,7 +860,7 @@ body.readonly .daycheck li .box{opacity:.6}
 /* アプリの版。公開のたびに、同じフォルダの version.json と一緒に上げる。
    起動時に version.json と見比べ、新しい版が出ていれば自動で入れ替える
    （公開サイトは「10分間は手元の古いコピーを使ってよい」設定で配られるため） */
-const APP_VERSION = "2026.09.18-3";
+const APP_VERSION = "2026.09.18-4";
 
 const CONFIG = {
   GAS_URL: "",   // 例: "https://script.google.com/macros/s/XXXX/exec"
@@ -873,6 +873,7 @@ const LS_THEME = "karisma_theme_v1";
 const LS_PEND  = "karisma_pending_v1";
 const LS_DRAFT = "karisma_draft_v1";   // 保存前の下書き（出席・集金）
 const LS_DRAFT_CHK = "karisma_draft_chk_v1";   // 保存前の下書き（確認）
+const LS_BASE  = "karisma_base_v1";    // 最後にサーバーと一致していた内容（送れなかった分の突き合わせに使う）
 
 const $  = (s, r) => (r || document).querySelector(s);
 const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
@@ -981,16 +982,17 @@ async function api(action, payload){
   const c = getConn();
   if(!c.url || !c.token) throw new Error("接続先が未設定です");
   const body = JSON.stringify({ action, token:c.token, payload: payload||null });
+  let txt;
   try{
     const res = await fetch(c.url, {
       method:"POST", mode:"cors", redirect:"follow",
       headers:{ "Content-Type":"text/plain;charset=utf-8" },
       body
     });
-    const txt = await res.text();
-    return unwrap(txt);
+    txt = await res.text();
   }catch(err){
-    // POSTが通らない環境向けの保険。取得(load)だけGET方式で再挑戦する
+    // 通信そのものが失敗したとき（POSTが通らない環境）だけの保険。取得(load)だけGET方式で再挑戦する。
+    // サーバーが答えを返した場合（「合言葉が違います」など）は、ここには来ない
     if(action === "load" || action === "ping"){
       const u = new URL(c.url);
       u.searchParams.set("action", action);
@@ -1000,6 +1002,7 @@ async function api(action, payload){
     }
     throw err;
   }
+  return unwrap(txt);
 }
 function unwrap(txt){
   let j;
@@ -1160,7 +1163,23 @@ function scheduleSave(){
   saveTimer = setTimeout(()=>{ saveTimer = null; doSave(); }, 800);
 }
 /* 保存待ち・保存中の変更が残っているか */
-function hasUnsaved(){ return !!saveTimer || saving || pendingSave; }
+function hasUnsaved(){ return !!saveTimer || saving || pendingSave || pendFlag(); }
+/* 「保存を押したのに、まだサーバーに届いていない変更」があるか */
+function pendFlag(){ try{ return !!localStorage.getItem(LS_PEND); }catch(e){ return false; } }
+/* 最後にサーバーと一致していた内容を端末に控える。開き直した後でも、送れなかった分を正しく突き合わせるため */
+function persistBase(){ try{ localStorage.setItem(LS_BASE, JSON.stringify({ rev:serverRev, wire:baseWire })); }catch(e){} }
+function loadBase(){
+  try{
+    const b = JSON.parse(localStorage.getItem(LS_BASE) || "null");
+    if(b){ serverRev = (b.rev == null ? null : Number(b.rev)); baseWire = b.wire || null; }
+  }catch(e){}
+}
+function openedFrom(){
+  return (navigator.standalone || (window.matchMedia && matchMedia("(display-mode: standalone)").matches))
+    ? "ホーム画面から開いたアプリ" : "ブラウザ";
+}
+let failCount = 0;
+const RETRY_WAIT = [2000, 5000, 10000];
 async function doSave(attempt){
   attempt = attempt || 0;
   if(!connReady() || readOnly) return;
@@ -1183,6 +1202,7 @@ async function doSave(attempt){
       state    = fromWire(merge3(base, mine, server));
       serverRev = Number(res.rev) || 0;
       baseWire  = JSON.stringify(server);
+      persistBase();
       saveCache(); render();
       if(attempt < 2){
         retry = true;
@@ -1195,13 +1215,29 @@ async function doSave(attempt){
       serverRev = Number(res && res.rev);
       if(!isFinite(serverRev)) serverRev = null;
       baseWire  = JSON.stringify(mine);
+      persistBase();
       try{ localStorage.removeItem(LS_PEND); }catch(e){}
+      failCount = 0;
       setSync("ok","保存しました " + hhmm());
     }
   }catch(err){
+    // 送れなかった変更は端末に残す（あとで必ず送り直す。上書きで消さない）
     try{ localStorage.setItem(LS_PEND,"1"); }catch(e){}
-    setSync("err","保存できません");
-    toast("保存に失敗：" + err.message, "再試行", ()=>doSave(), 9000);
+    saveCache();
+    failCount++;
+    if(failCount <= RETRY_WAIT.length){
+      // 一時的な失敗が多いので、まず黙って数回やり直す
+      setSync("busy", "保存をやり直しています（" + failCount + "/" + RETRY_WAIT.length + "）");
+      setTimeout(()=>{ if(pendFlag()) doSave(); }, RETRY_WAIT[failCount-1]);
+    }else{
+      failCount = 0;
+      setSync("err","未送信の変更あり");
+      const msg = String(err && err.message || err);
+      toast(/合言葉/.test(msg)
+          ? "保存できませんでした（サーバーから「合言葉が違います」と返されました）。入力は端末に残っていて、次に開いたときや「再試行」で送り直します。原因は「管理」→「接続をテストする」で調べられます"
+          : "保存できませんでした：" + msg + "。入力は端末に残っていて、あとで送り直します",
+        "再試行", ()=>doSave(), 12000);
+    }
   }finally{
     saving = false;
     if(!retry && pendingSave){ pendingSave=false; scheduleSave(); }
@@ -1345,12 +1381,19 @@ async function boot(){
     return;
   }
 
-  // ② 裏で最新を取得して差し替え
+  // ② 裏で最新を取得して差し替え（送れていない変更があれば、先に送る）
+  loadBase();
   await reload(!cached);
 }
 
 async function reload(showSeedIfEmpty){
   if(!connReady()){ toast("接続先が未設定です。管理タブで設定してください"); return; }
+  // 保存を押したのにまだ届いていない変更があれば、最新で上書きせず、先に送る（相手の変更とは突き合わせる）
+  if(pendFlag() && state){
+    setSync("busy","まだ送れていない変更を送っています…");
+    await doSave();
+    if(pendFlag()) return;          // まだ送れない → 画面は手元の内容のまま
+  }
   setSync("busy","最新を取得中…");
   try{
     const w = await api("load");
@@ -1359,6 +1402,7 @@ async function reload(showSeedIfEmpty){
     serverRev = Number(w && w.rev); if(!isFinite(serverRev)) serverRev = null;
     serverApi = Number(w && w.apiVersion) || 1;
     baseWire  = JSON.stringify(toWire(fresh));
+    persistBase();
     state = fresh;
     saveCache(); applyRole(); render();
     setSync("ok", readOnly ? "閲覧専用・最新です " + hhmm() : "最新です " + hhmm());
@@ -2518,7 +2562,9 @@ function bindUI(){
   document.addEventListener("visibilitychange", ()=>{
     if(document.visibilityState !== "visible") return;
     checkUpdate(false);
-    if(!connReady() || hasUnsaved()) return;    // 未保存があるときは触らない
+    if(!connReady()) return;
+    if(pendFlag() && !saving){ doSave(); return; }   // 送れていない変更を先に送る
+    if(hasUnsaved()) return;                           // 保存中・保存待ちは触らない
     reload();
   });
   fitHeader();
@@ -2661,14 +2707,36 @@ async function testConn(){
   if(/[^\x20-\x7E]/.test(token)) warn.push("合言葉に<b>全角文字</b>が混じっています。半角の英数字とハイフンだけにしてください。");
   if(/\s/.test(token)) warn.push("合言葉に<b>空白</b>が入っています。");
 
-  box.innerHTML = "確認中…";
-  try{
-    await api("ping");
+  box.innerHTML = "確認中…（5回続けて試します）";
+  const N = 5; let ok = 0, bad = 0, other = "", lastErr = null;
+  for(let i=0;i<N;i++){
+    try{ await api("ping"); ok++; }
+    catch(e){ lastErr = e; const m = String(e && e.message || e); if(/合言葉/.test(m)) bad++; else other = m; }
+    box.innerHTML = `確認中…（${i+1}/${N}）`;
+  }
+  const idTail = (url.match(/\/s\/([^/]+)\//) || [,""])[1].slice(-6);
+  const where = `<br><span class="small muted">この画面：<b>${openedFrom()}</b>／接続先の末尾：…${esc(idTail)}／合言葉：${token.length}文字（先頭「${esc(token.slice(0,1))}」・末尾「${esc(token.slice(-1))}」）</span>`;
+  if(ok === N){
     box.className = "notice";
-    box.innerHTML = "✅ <b>つながりました。</b>合言葉も一致しています。" +
+    box.innerHTML = `✅ <b>つながりました。</b>${N}回とも合言葉が一致しました。` +
       (warn.length ? "<br>（気になる点：" + warn.join(" ") + "）" : "") +
-      "<br>「接続先を保存して読み込み直す」を押してください。";
-  }catch(err){
+      "<br>「接続先を保存して読み込み直す」を押してください。" + where;
+    if(pendFlag()) doSave();
+    return;
+  }
+  if(ok > 0 && bad > 0){
+    box.className = "notice warn";
+    box.innerHTML = `⚠️ <b>${N}回中 ${ok}回は成功、${bad}回は「合言葉が違う」と返されました。</b>` +
+      "<br>合言葉は合っています。<b>Googleの側で、新しい版と古い版の Code.gs が混ざって応答しています。</b>" +
+      "<br>・Code.gs を更新した直後によく起き、多くは<b>数分〜十数分で収まります</b>" +
+      "<br>・長く続くときは、Apps Script の「デプロイ」→「デプロイを管理」で、使っているデプロイの<b>バージョンが一番新しい番号</b>か、" +
+      "コードの <code>var TOKEN = '……';</code> が正しいかを確かめてください" +
+      "<br>・保存できなかった入力は端末に残っていて、自動で送り直します" + where;
+    return;
+  }
+  // すべて失敗：合言葉の食い違いか、届いていないか
+  const err = lastErr;
+  {
     box.className = "notice warn";
     const msg = String(err && err.message || err);
     if(/合言葉/.test(msg)){
@@ -2678,10 +2746,9 @@ async function testConn(){
         "<br><b>Code.gs を書き換えた場合は、「デプロイ」→「デプロイを管理」→鉛筆マーク→" +
         "バージョンを「新バージョン」→「デプロイ」まで行わないと反映されません。</b>" +
         (warn.length ? "<br>また、" + warn.join(" ") : "") +
-        "<br><span class=\"small muted\">いま入力されている合言葉：" + token.length + "文字" +
-        "（先頭「" + esc(token.slice(0,1)) + "」／末尾「" + esc(token.slice(-1)) + "」）</span>";
+        "<br>iPhoneでは、<b>ホーム画面から開いたアプリとSafariで合言葉を別々に記憶</b>しています。片方だけ違っていることがあります。" + where;
     }else{
-      box.innerHTML = "❌ <b>Googleまで届いていません。</b>" + esc(msg) +
+      box.innerHTML = "❌ <b>Googleまで届いていません。</b>" + esc(other || msg) +
         "<br>デプロイの設定で <b>「アクセスできるユーザー＝全員」</b> になっているか、" +
         "URLの末尾が <b>/exec</b> かをご確認ください。" +
         (warn.length ? "<br>" + warn.join(" ") : "");
