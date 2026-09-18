@@ -860,7 +860,7 @@ body.readonly .daycheck li .box{opacity:.6}
 /* アプリの版。公開のたびに、同じフォルダの version.json と一緒に上げる。
    起動時に version.json と見比べ、新しい版が出ていれば自動で入れ替える
    （公開サイトは「10分間は手元の古いコピーを使ってよい」設定で配られるため） */
-const APP_VERSION = "2026.09.18-2";
+const APP_VERSION = "2026.09.18-3";
 
 const CONFIG = {
   GAS_URL: "",   // 例: "https://script.google.com/macros/s/XXXX/exec"
@@ -1945,6 +1945,7 @@ function toggleCheck(lid, mid, val){
   setChkDraft(lid, mid, next);
   persistDraft();
   if(patchChkRow(lid, mid)) renderCheckSummary(); else renderCheck();
+  viewsStale = true;             // 集計など他のタブは、開いた時に描き直す
   updateSaveBar();
   if(navigator.vibrate) navigator.vibrate(12);
 }
@@ -2264,6 +2265,7 @@ function bindUI(){
       $$("nav.tabs button").forEach(x=>x.setAttribute("aria-selected", String(x===b)));
       ["matrix","day","check","stats","admin"].forEach(v=> $("#view-"+v).hidden = (v!==currentView));
       if(viewsStale) render();
+      else if(currentView === "stats") renderStats();   // 集計は開くたびに最新で
       fitTable();
       window.scrollTo(0,0);
     });
